@@ -1,11 +1,12 @@
 {
   "$schema": "https://railway.com/railway.schema.json",
-  "_note": "Equity V6.0 module config. Yeni Railway project 'meridian-equity-v6' Settings → Config Path → 'railway.equity.json'. Mevcut equity ('devine-laughter') railway.json okumaya devam eder, etkilenmez.",
+  "_note": "Equity V6.0 module config. Mevcut equity ('devine-laughter') railway.json okumaya devam eder, etkilenmez. startCommand explicit set — Procfile'daki 'cd server && uvicorn main:app' otomatik tespitini ezeyim.",
   "build": {
     "builder": "DOCKERFILE",
     "dockerfilePath": "Dockerfile.equity"
   },
   "deploy": {
+    "startCommand": "sh -c 'cd /app/server && exec uvicorn equity_preview_app:app --host 0.0.0.0 --port ${PORT:-8000}'",
     "restartPolicyType": "ON_FAILURE",
     "restartPolicyMaxRetries": 10
   }
