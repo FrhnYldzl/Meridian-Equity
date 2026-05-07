@@ -1,13 +1,12 @@
 """
 equity/journal.py — V6.0-α: Equity trade journal (seyir defteri).
 
-Crypto'nun journal pattern'i ile birebir aynı şema, asset_class='equity'.
 Auto-executor'ın her aşamasını SQLite'a kaydeder + Railway Volume support.
 
 Equity-specific:
-  - sector field (crypto'da asset_group)
+  - sector field
   - PDT day_trades_remaining tracking
-  - Bracket order tracking (Alpaca crypto'dan farklı — equity'de native)
+  - Bracket order tracking (Alpaca equity'de native)
 
 Mevcut equity'nin trade_journal.py ve trade_journal_v2.py'si DOKUNULMAZ.
 Bu V6.0 için yeni, modern journal — V5.7 trade_journal'ından MIGRATION
@@ -50,7 +49,7 @@ def _resolve_db_path() -> str:
 
 
 # ─────────────────────────────────────────────────────────────────
-# Schema — crypto ile aynı yapı, equity ek alanları
+# Schema — equity event log + PDT + bracket + live phase tracking
 # ─────────────────────────────────────────────────────────────────
 
 SCHEMA = """

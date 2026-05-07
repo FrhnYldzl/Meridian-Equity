@@ -1,7 +1,7 @@
 """
 equity/audit_impl.py — V6.0-α: Equity Gemini Auditor (Council mode).
 
-Crypto'nun audit_impl.py felsefesi equity için:
+Pipeline:
   Brain (Claude) → Audit (Gemini) → Gates → Risk → Broker → Journal
 
 Equity-specific audit checklist:
@@ -49,8 +49,7 @@ class EquityAuditor:
     """
     Gemini-based equity trading decision auditor with cost optimization.
 
-    Crypto'nun CryptoAuditor'undan AYRI (asset_class izolasyonu).
-    Mevcut gemini_auditor.py'dan da AYRI.
+    Mevcut gemini_auditor.py'dan AYRI (V5.7 legacy, paralel yaşar).
     """
 
     asset_class = AssetClass.EQUITY
@@ -74,7 +73,7 @@ class EquityAuditor:
 
     @staticmethod
     def _resolve_api_key():
-        """Esnek key çözüm — Crypto auditor pattern'i."""
+        """Esnek key çözüm — V6.0-α standard pattern."""
         from dotenv import dotenv_values
         from pathlib import Path
         env_path = Path(__file__).parent.parent.parent / ".env"

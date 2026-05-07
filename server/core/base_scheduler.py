@@ -11,10 +11,6 @@ sıklık değişir. Ama mode tanımları ve tablo farklı:
     night            (20-4 ET)    → 60dk
     weekend                       → 180dk
 
-  Crypto:
-    24/7 sabit                    → 30dk (ya da hacme göre adaptive)
-    weekend slowdown opsiyonel    → 60dk
-
   Options:
     Equity gibi + expirasyon yakınında theta urgency
     expiring_today                → 5dk (delta-hedge urgency)

@@ -4,8 +4,9 @@ EquityBrainAdapter — claude_brain modülünü BaseBrain interface'ine sarmalar
 Mevcut claude_brain fonksiyonları (run_brain, review_past_trades) tek satır
 değişmemiştir; bu adapter onları çağırır. Interface'in regime/sentiment/
 learning_context parametreleri equity adapter'da KULLANILMAZ — mevcut
-run_brain bu bilgileri ya kendi içinde alıyor ya gerek duymuyor. Crypto/options
-adapter'ları bu parametreleri prompt'a enjekte etmek için kullanacak.
+run_brain bu bilgileri ya kendi içinde alıyor ya gerek duymuyor.
+İleride başka asset class adapter'ları bu parametreleri prompt'a enjekte
+etmek için kullanabilir.
 """
 
 from claude_brain import run_brain, review_past_trades

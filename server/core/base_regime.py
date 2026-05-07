@@ -6,7 +6,6 @@ Kantitatif rejim algılaması her asset class için aynı bileşenleri kullanır
 
 Ama bileşenlerin hesaplanışı farklı:
   Equity:  SPY benchmark, watchlist breadth (advancing/declining), EMA50
-  Crypto:  BTC benchmark, top-N market-cap breadth, BTC dominance trendi
   Options: IV rank (%volatility), term structure (trend), put/call ratio (momentum)
 """
 

@@ -2,7 +2,8 @@
 equity/ — Equity asset class implementation.
 
 V5.8: Adapter pattern (V5.7 modüllerini sarmalar).
-V6.0: Full implementation alongside adapters — auto_executor, journal, audit.
+V6.0: Full implementation alongside adapters — auto_executor, journal, audit,
+      brain (prompt caching), pro_panels (10 dashboard panels).
 
 V5.7 modülleri (main.py, claude_brain.py, regime_detector.py, risk_manager.py,
 scheduler.py, gemini_auditor.py, news_sentiment.py, anomaly_detector.py,

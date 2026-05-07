@@ -1,11 +1,9 @@
 """
 main.py — Meridian Equity V6.0 dispatcher.
 
-Bu dosya equity/v6.0 branch'i içindir. Sadece equity_preview_app'ı
-yükler — crypto kodu BU BRANCH'TE YOKTUR.
-
-Eski V5.7 main.py logic'i main_v57_archive.py'de saklanıyor.
-İhtiyaç olursa LEGACY_V57_MODE=true env var ile çağrılabilir.
+Default: equity_preview_app:app yükler.
+LEGACY_V57_MODE=true env var ile main_v57_archive:app yüklenebilir
+(V5.7 legacy fallback).
 """
 
 import os

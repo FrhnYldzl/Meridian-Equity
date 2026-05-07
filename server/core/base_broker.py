@@ -2,8 +2,8 @@
 base_broker.py — Abstract Broker interface.
 
 Tüm asset class'ların broker implementasyonları bu interface'i izler.
-Equity (paper/live) için EquityBrokerAdapter, ileride crypto için CryptoBroker,
-options için OptionsBroker bu sınıfı implement eder.
+Equity (paper/live) için EquityBrokerAdapter, ileride options için OptionsBroker
+bu sınıfı implement eder.
 
 Tasarım kuralı:
 - Public surface küçük ve net olmalı (execute, get_position, get_balance, ...)

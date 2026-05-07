@@ -3,7 +3,6 @@ base_brain.py — Abstract AI Brain interface.
 
 Multi-step reasoning iskeleti her asset class için aynı; prompt içeriği farklı:
   Equity:  Trend + momentum + breadth + sektör rotasyonu
-  Crypto:  BTC dominance, funding rate, on-chain (varsa), 24/7 bağlam
   Options: Greeks (delta/gamma/theta/vega), IV rank, term structure, expirasyon
 
 Gemini audit kancası burada implementasyondan bağımsız (gemini_auditor modülü

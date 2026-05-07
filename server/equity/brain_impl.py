@@ -195,7 +195,7 @@ class EquityBrain(BaseBrain):
 
     @staticmethod
     def _resolve_api_key():
-        """Esnek key çözümü — crypto pattern'i ile aynı."""
+        """Esnek key çözümü — V6.0-δ standard resolution chain."""
         for name in ("EQUITY_ANTHROPIC_API_KEY", "ANTHROPIC_API_KEY"):
             v = _get(name)
             if v:

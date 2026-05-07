@@ -1,8 +1,7 @@
 """
 equity/auto_executor.py — V6.0-α: Equity AutoExecutor.
 
-Crypto'nun CryptoAutoExecutor'ının equity karşılığı + cost optimization +
-phased live trading support.
+Equity-specific cost-optimized auto-executor + phased live trading support.
 
 Pipeline (10 aşama):
   1. Pre-flight (account, daily anchor, PDT count)
@@ -75,7 +74,7 @@ def _env_bool(key: str, default: bool = False) -> bool:
 # ─────────────────────────────────────────────────────────────────
 
 PHASE_PROFILES = {
-    0: {  # Paper only — full crypto-equivalent settings
+    0: {  # Paper only — full sandbox settings
         "max_notional": 500,
         "max_open_positions": 3,
         "daily_loss_halt_pct": -2.0,
@@ -169,7 +168,7 @@ class EquityAutoExecutor:
             "DAILY_LOSS_HALT_PCT": _env_float("EQUITY_DAILY_LOSS_HALT_PCT", profile["daily_loss_halt_pct"]),
             "SYMBOL_COOLDOWN_HOURS": _env_int("EQUITY_SYMBOL_COOLDOWN_HOURS", 4),
             "MAX_NOTIONAL_PER_TRADE": _env_float("EQUITY_MAX_NOTIONAL_PER_TRADE", profile["max_notional"]),
-            "MAX_SECTOR_PCT": _env_float("EQUITY_MAX_SECTOR_PCT", 30.0),  # equity %30 (crypto'da %40)
+            "MAX_SECTOR_PCT": _env_float("EQUITY_MAX_SECTOR_PCT", 30.0),  # max %30 sektör concentration
         }
 
         # Cost optimization (Paket A)
@@ -730,7 +729,7 @@ class EquityAutoExecutor:
         pending_executions: list, equity: float,
         pdt_remaining: int,
     ) -> Optional[str]:
-        """Equity gates — crypto + PDT eklenmiş."""
+        """Equity gates — confidence + PDT + sector + cooldown + max-pos + market-hours."""
         ticker = decision.get("ticker", "?")
         action = (decision.get("action") or "").lower()
         confidence = int(decision.get("confidence", 0))

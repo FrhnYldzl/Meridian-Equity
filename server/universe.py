@@ -1,8 +1,7 @@
 """
 universe.py — Broad Scan Universe Loader
 
-NASDAQ 100 + Core WATCHLIST + S&P 500 leaders + Crypto-related stocks.
-Toplam ~180 sembol, hepsi sektör mapping'li.
+NASDAQ 100 + Core WATCHLIST + S&P 500 leaders (~250 sembol, sektör mapping'li).
 
 Kullanım:
     from universe import get_broad_universe, EXTENDED_SECTOR_MAP
@@ -77,7 +76,7 @@ SP500_EXTRAS: List[str] = [
     # Materials
     "LIN", "APD", "SHW", "FCX", "NEM",
 
-    # Crypto-related equities (önemli — equity ama crypto exposure)
+    # Specialty Financial / Mining equities
     "COIN", "MARA", "RIOT", "MSTR", "CLSK", "HUT", "WULF", "BITF", "HOOD",
 
     # Popular ETFs
@@ -151,7 +150,7 @@ EXTENDED_SECTOR_MAP: dict[str, str] = {
     "MET": "Financial", "PRU": "Financial", "AIG": "Financial",
     "CB": "Financial", "PGR": "Financial", "PYPL": "Financial",
     "PAYX": "Financial", "ADP": "Financial",
-    # Crypto-related equities (financial under sector for risk grouping)
+    # Specialty Financial / Mining equities
     "COIN": "Financial", "MARA": "Financial", "RIOT": "Financial",
     "MSTR": "Financial", "CLSK": "Financial", "HUT": "Financial",
     "WULF": "Financial", "BITF": "Financial", "HOOD": "Financial",

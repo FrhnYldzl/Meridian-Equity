@@ -8,9 +8,8 @@ Tüm asset class'lar aynı risk felsefesini paylaşır:
   - Flash crash failsafe
   - Portfolio-wide risk check (drawdown gate, max invested)
 
-Implementasyonlar (equity / crypto / options) parametreleri farklı tutar:
+Implementasyonlar parametreleri farklı tutar:
   Equity:  max_risk_pct=0.02, %30 sektör limiti
-  Crypto:  max_risk_pct=0.01, %40 grup limiti (L1/L2/DeFi)
   Options: max_risk_pct=0.005 premium başına, %50 underlying limiti
 """
 

@@ -4,8 +4,7 @@ BaseScheduler interface'ine sarmalar.
 
 scheduler.py'nin orkestrasyon kısmı (smart_scan_dispatcher, run_scan, start)
 DOKUNULMUYOR. Bu adapter sadece mod tespit + market saati sorularını
-interface'e açar. Crypto/options adapter'ları kendi mode tablolarını
-implement edecek.
+interface'e açar.
 """
 
 from core.asset_class import AssetClass

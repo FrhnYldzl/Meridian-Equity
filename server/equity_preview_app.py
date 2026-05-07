@@ -82,7 +82,7 @@ import scheduler as legacy_sched
 from config import SECTOR_MAP
 from universe import EXTENDED_SECTOR_MAP, get_extended_universe
 
-# V6.0-ε.6: Birleşik sektör haritası — Core 15 + NDX-100 + SP500 leaders + Crypto-related (~180)
+# V6.0-ε.6: Birleşik sektör haritası — Core 15 + NDX-100 + SP500 leaders (~250 hisse)
 # Core SECTOR_MAP override'lar ana, EXTENDED ek olarak ekle (Core öncelikli).
 _MERGED_SECTOR_MAP = {**EXTENDED_SECTOR_MAP, **SECTOR_MAP}
 
@@ -96,7 +96,7 @@ from equity import (
     pro_panels,
 )
 
-app = FastAPI(title="Meridian Capital — Equity V6.0", version="6.0-ε.5")
+app = FastAPI(title="Meridian Capital — Equity V6.0", version="6.0-ε.7")
 
 
 # ─────────────────────────────────────────────────────────────────
@@ -498,7 +498,7 @@ def _shutdown():
 
 @app.get("/api/modules")
 def modules():
-    # equity/v6.0 branch — sadece equity modülü (crypto bu repodan ayrıştı)
+    # equity-only deployment
     return {
         "current": "equity",
         "modules": [
@@ -524,7 +524,7 @@ def health():
     return {
         "status": "ok",
         "module": "equity",
-        "version": "6.0-ε.5",
+        "version": "6.0-ε.7",
         "asset_class": "equity",
         "dry_run": _broker_dry_run,
         "paper": True,  # V6.0-η'da live mode env var ile değişecek
@@ -606,7 +606,6 @@ def universe():
         "core": core_list,
         "extended": extended_list,
         "sector_map": _MERGED_SECTOR_MAP,
-        "asset_groups": _MERGED_SECTOR_MAP,  # backward-compat alias
         "core_count": len(core_list),
         "extended_count": len(extended_list),
         "sector_count": len(sector_buckets),
@@ -733,7 +732,7 @@ def overview_charts(timeframe: str = "1Day", days: int = 30):
     if hit is not None:
         return hit
 
-    out = {"benchmark": None, "btc": None, "positions": []}
+    out = {"benchmark": None, "positions": []}
 
     # ─── V6.0-ε.4: Parallel bars fetch (5s → ~500ms) ───
     # Önce sembol listesini topla (SPY + her açık pozisyon)
@@ -751,7 +750,6 @@ def overview_charts(timeframe: str = "1Day", days: int = 30):
             pos_meta.append({
                 "symbol": sym,
                 "sector": sector,
-                "asset_group": sector,
                 "position": {
                     "qty": float(p.qty),
                     "side": side_clean,
@@ -783,7 +781,6 @@ def overview_charts(timeframe: str = "1Day", days: int = 30):
         "sector": "ETF",
     }
     out["benchmark"] = benchmark
-    out["btc"] = benchmark  # backward-compat
 
     # Pozisyon kartları
     for pm in pos_meta:
@@ -792,7 +789,6 @@ def overview_charts(timeframe: str = "1Day", days: int = 30):
             "symbol": pm["symbol"],
             "bars": b.get("bars", []),
             "sector": pm["sector"],
-            "asset_group": pm["asset_group"],
             "position": pm["position"],
         })
 
@@ -892,7 +888,6 @@ def symbol_summary(symbol: str):
     return {
         "symbol": sym,
         "sector": sector,
-        "asset_group": sector,  # backward-compat alias for old JS bindings
         "market": {
             "price": coin.get("price"),
             "change_pct": coin.get("change_pct"),
@@ -1401,7 +1396,7 @@ def pro_panels_index():
             {"id": 9, "name": "AI Confidence Stats", "endpoint": "/api/equity/pro/ai-confidence-stats"},
             {"id": 10, "name": "Trade Replay", "endpoint": "/api/equity/pro/trade-replay"},
         ],
-        "version": "6.0-ε.5",
+        "version": "6.0-ε.7",
         "asset_class": "equity",
     }
 

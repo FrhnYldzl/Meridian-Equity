@@ -153,9 +153,6 @@
   .module-btn.equity { --mod-glow: rgba(16, 185, 129, 0.4); }
   .module-btn.equity.active { background: rgba(16,185,129,0.15); border-color: #10b981; color: #34d399; }
   .module-btn.equity:hover { border-color: #10b981; color: #34d399; }
-  .module-btn.crypto { --mod-glow: rgba(247, 147, 26, 0.4); }
-  .module-btn.crypto.active { background: rgba(247,147,26,0.15); border-color: #10b981; color: #34d399; }
-  .module-btn.crypto:hover { border-color: #10b981; color: #34d399; }
   .module-btn.options { --mod-glow: rgba(59, 130, 246, 0.4); }
   .module-btn.options.active { background: rgba(59,130,246,0.15); border-color: #3b82f6; color: #60a5fa; }
   .module-btn.options:hover { border-color: #3b82f6; color: #60a5fa; }
@@ -217,7 +214,7 @@
   .status-chip.bull { background: var(--green-dim); border-color: var(--green); color: var(--green-bright); }
   .status-chip.bear { background: var(--red-dim); border-color: var(--red); color: var(--red-bright); }
   .status-chip.neutral { background: var(--bg-tertiary); }
-  .status-chip.spy, .status-chip.btc { background: var(--equity-dim); border-color: var(--equity-border); color: var(--equity-bright); }
+  .status-chip.spy { background: var(--equity-dim); border-color: var(--equity-border); color: var(--equity-bright); }
 
   .badge {
     display: inline-block;
@@ -372,12 +369,12 @@
   }
 
   /* ─── COIN CARDS (Overview Core 10) ───────────────────────────── */
-  .coin-grid {
+  .stock-grid {
     display: grid;
     grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
     gap: 10px;
   }
-  .coin-card {
+  .stock-card {
     background: var(--bg-tertiary);
     border: 1px solid var(--border);
     border-radius: var(--radius);
@@ -385,36 +382,36 @@
     cursor: pointer;
     transition: all 0.15s;
   }
-  .coin-card:hover {
+  .stock-card:hover {
     border-color: var(--equity-border);
     transform: translateY(-1px);
     box-shadow: 0 4px 12px rgba(247, 147, 26, 0.08);
   }
-  .coin-head {
+  .stock-head {
     display: flex; justify-content: space-between; align-items: baseline;
     margin-bottom: 8px;
   }
-  .coin-symbol {
+  .stock-symbol {
     font-weight: 700; font-size: 13px;
     color: var(--equity-bright); font-family: var(--font-mono);
   }
-  .coin-trend-tag {
+  .stock-trend-tag {
     font-size: 9px; padding: 2px 6px; border-radius: 3px;
     text-transform: uppercase; font-weight: 700; letter-spacing: 0.05em;
   }
-  .coin-trend-tag.up { background: var(--green-dim); color: var(--green-bright); }
-  .coin-trend-tag.down { background: var(--red-dim); color: var(--red-bright); }
-  .coin-trend-tag.flat { background: var(--bg-input); color: var(--text-tertiary); }
-  .coin-price {
+  .stock-trend-tag.up { background: var(--green-dim); color: var(--green-bright); }
+  .stock-trend-tag.down { background: var(--red-dim); color: var(--red-bright); }
+  .stock-trend-tag.flat { background: var(--bg-input); color: var(--text-tertiary); }
+  .stock-price {
     font-family: var(--font-mono);
     font-size: 18px; font-weight: 700; margin-bottom: 4px;
   }
-  .coin-stats {
+  .stock-stats {
     display: flex; gap: 12px;
     font-size: 10.5px; color: var(--text-tertiary);
     font-family: var(--font-mono);
   }
-  .coin-stats .stat-label { color: var(--text-muted); }
+  .stock-stats .stat-label { color: var(--text-muted); }
 
   /* ─── MARKETS TABLE ─────────────────────────────────────────── */
   .markets-toolbar {
@@ -540,7 +537,7 @@
     border-color: var(--equity-border);
     box-shadow: 0 4px 16px rgba(16, 185, 129, 0.1);
   }
-  .ovc-card.spy, .ovc-card.btc {
+  .ovc-card.spy {
     background: linear-gradient(135deg, var(--bg-card), var(--equity-dim) 60%);
     border-color: var(--equity-border);
   }
@@ -931,7 +928,7 @@
     .panel-title { font-size: 13px; }
     .hero-card { padding: 14px; }
     .hero-value.large { font-size: 24px; }
-    .ovc-card, .coin-card { padding: 10px; }
+    .ovc-card, .stock-card { padding: 10px; }
     table.table { font-size: 10px; }
     table.table th, table.table td { padding: 4px 6px; }
     .filter-pill { font-size: 10px; padding: 3px 8px; }
@@ -1100,7 +1097,7 @@
           View all 33 →
         </a>
       </div>
-      <div class="coin-grid" id="coinGrid"></div>
+      <div class="stock-grid" id="stockGrid"></div>
     </div>
   </section>
 
@@ -1195,7 +1192,7 @@
         <div class="panel" style="margin-bottom: 14px;">
           <div class="panel-head">
             <div class="panel-title">Live Metrics</div>
-            <span class="coin-trend-tag flat" id="symTrendTag">→ FLAT</span>
+            <span class="stock-trend-tag flat" id="symTrendTag">→ FLAT</span>
           </div>
           <div class="sym-price" id="symPrice">—</div>
           <div class="sym-change" id="symChange">—</div>
@@ -1931,7 +1928,7 @@ async function loadAccountFull() {
 async function loadMarketDataCore() {
   try {
     const md = await jget(API + '/market-data');
-    const grid = document.getElementById('coinGrid');
+    const grid = document.getElementById('stockGrid');
     // V6.0-ε.3: Equity universe — MD'de var olan + benchmark'ları dinamik çek
     const PREFERRED = ['SPY','QQQ','NVDA','AAPL','MSFT','GOOGL','AMZN','META','TSLA','AMD','AVGO'];
     const symbols = PREFERRED.filter(s => md[s] && !md[s].error).slice(0, 10);
@@ -1947,13 +1944,13 @@ async function loadMarketDataCore() {
       const trendLabel = d.trend === 'uptrend' ? '↑ UP' : d.trend === 'downtrend' ? '↓ DOWN' : '→ FLAT';
       const deltaCls = d.change_pct >= 0 ? 'up' : 'down';
       return `
-        <div class="coin-card" onclick="openSymbolChart('${sym}')">
-          <div class="coin-head">
-            <span class="coin-symbol">${sym}</span>
-            <span class="coin-trend-tag ${trendCls}">${trendLabel}</span>
+        <div class="stock-card" onclick="openSymbolChart('${sym}')">
+          <div class="stock-head">
+            <span class="stock-symbol">${sym}</span>
+            <span class="stock-trend-tag ${trendCls}">${trendLabel}</span>
           </div>
-          <div class="coin-price">${fmt.small(d.price)}</div>
-          <div class="coin-stats">
+          <div class="stock-price">${fmt.small(d.price)}</div>
+          <div class="stock-stats">
             <span class="delta ${deltaCls}">${fmt.pct(d.change_pct, true)}</span>
             <span><span class="stat-label">RSI</span> ${fmt.num(d.rsi14, 1)}</span>
             <span><span class="stat-label">ATR%</span> ${fmt.num(d.atr_pct, 2)}</span>
@@ -2028,7 +2025,7 @@ async function loadRisk() {
 
     // Universe → sektör bar chart
     const u = await jget(API + '/universe');
-    const sectorMap = u.sector_map || u.asset_groups || {};
+    const sectorMap = u.sector_map || {};
     const groups = {};
     if (Array.isArray(sectorMap)) {
       // Edge case: list değilse her elemanı say
@@ -2562,7 +2559,7 @@ function renderMarkets() {
         <td>${fmt.num(r.atr_pct, 2)}</td>
         <td>${fmt.num(r.volume_ratio, 2)}</td>
         <td>${r.momentum_score}</td>
-        <td><span class="coin-trend-tag ${trendCls}">${trendLabel}</span></td>
+        <td><span class="stock-trend-tag ${trendCls}">${trendLabel}</span></td>
       </tr>`;
   }).join('');
 
@@ -2702,7 +2699,7 @@ async function loadSymbolSummary() {
     const tt = document.getElementById('symTrendTag');
     if (tt) {
       tt.textContent = trendInfo.label;
-      tt.className = 'coin-trend-tag ' + trendInfo.cls;
+      tt.className = 'stock-trend-tag ' + trendInfo.cls;
     }
 
     // Numeric stats
@@ -2741,7 +2738,7 @@ async function loadSymbolSummary() {
       }
     }
 
-    setText('symGroup', s.sector || s.asset_group || 'Unknown');
+    setText('symGroup', s.sector || 'Unknown');
 
     // Signal banner
     const badge = document.getElementById('symSignalBadge');
@@ -2922,28 +2919,29 @@ async function loadOverviewCharts() {
     overviewCharts = {};
 
     const cards = [];
+    const benchmark = data.benchmark;
 
     // SPY benchmark card (always)
-    if (data.btc?.bars?.length) {
-      const last = data.btc.bars[data.btc.bars.length - 1].c;
-      const first = data.btc.bars[0].c;
+    if (benchmark?.bars?.length) {
+      const last = benchmark.bars[benchmark.bars.length - 1].c;
+      const first = benchmark.bars[0].c;
       const changePct = first > 0 ? ((last - first) / first * 100) : 0;
       const cls = changePct >= 0 ? 'up' : 'down';
       cards.push(`
         <div class="ovc-card spy" onclick="openSymbolChart('SPY')">
           <div class="ovc-head">
             <span class="ovc-symbol">SPY</span>
-            <span class="ovc-tag">L1 · BENCHMARK</span>
+            <span class="ovc-tag">ETF · BENCHMARK</span>
           </div>
           <div class="ovc-stats">
             <span class="ovc-price">${fmt.usd(last)}</span>
             <span class="ovc-pl ${cls}">${fmt.pct(changePct, true)} <span style="color: var(--text-muted); font-weight: 500;">(${overviewState.days}d)</span></span>
           </div>
           <div class="ovc-meta">
-            <span><span style="color: var(--text-muted);">Bars</span> ${data.btc.bars.length}</span>
+            <span><span style="color: var(--text-muted);">Bars</span> ${benchmark.bars.length}</span>
             <span><span style="color: var(--text-muted);">TF</span> ${overviewState.tf}</span>
           </div>
-          <div class="ovc-canvas-wrap"><canvas id="ovc-canvas-btc"></canvas></div>
+          <div class="ovc-canvas-wrap"><canvas id="ovc-canvas-spy"></canvas></div>
         </div>`);
     }
 
@@ -2954,11 +2952,12 @@ async function loadOverviewCharts() {
       const pos = p.position;
       const cls = pos.unrealized_pl >= 0 ? 'up' : 'down';
       const last = p.bars[p.bars.length - 1].c;
+      const sectorLabel = p.sector || 'Unknown';
       cards.push(`
         <div class="ovc-card" onclick="openSymbolChart('${p.symbol}')">
           <div class="ovc-head">
             <span class="ovc-symbol">${p.symbol}</span>
-            <span class="ovc-tag long">${pos.side?.toUpperCase()} · ${p.asset_group}</span>
+            <span class="ovc-tag long">${(pos.side || 'long').toUpperCase()} · ${sectorLabel}</span>
           </div>
           <div class="ovc-stats">
             <span class="ovc-price">${fmt.small(last)}</span>
@@ -2969,12 +2968,12 @@ async function loadOverviewCharts() {
             <span><span style="color: var(--text-muted);">Entry</span> ${fmt.small(pos.avg_entry_price)}</span>
             <span><span style="color: var(--text-muted);">MV</span> ${fmt.usd(pos.market_value)}</span>
           </div>
-          <div class="ovc-canvas-wrap"><canvas id="ovc-canvas-${p.symbol.replace('/', '_')}"></canvas></div>
+          <div class="ovc-canvas-wrap"><canvas id="ovc-canvas-${p.symbol.replace('.', '_')}"></canvas></div>
         </div>`);
     }
 
     // Empty state if no positions (SPY benchmark alone is fine, but add hint)
-    if (positions.length === 0 && data.btc?.bars?.length) {
+    if (positions.length === 0 && benchmark?.bars?.length) {
       cards.push(`
         <div class="ovc-empty">
           <span style="font-size: 24px;">💼</span><br/>
@@ -2990,13 +2989,13 @@ async function loadOverviewCharts() {
     wrap.innerHTML = cards.join('');
 
     // Now render the charts
-    if (data.btc?.bars?.length) {
-      drawOvcChart('ovc-canvas-btc', data.btc.bars, '#10b981', null);
+    if (benchmark?.bars?.length) {
+      drawOvcChart('ovc-canvas-spy', benchmark.bars, '#10b981', null);
       overviewCharts['SPY'] = window._lastOvc;
     }
     for (const p of positions) {
       if (!p.bars?.length) continue;
-      const cid = 'ovc-canvas-' + p.symbol.replace('/', '_');
+      const cid = 'ovc-canvas-' + p.symbol.replace('.', '_');
       const entry = p.position?.avg_entry_price;
       drawOvcChart(cid, p.bars, '#34d399', entry);
       overviewCharts[p.symbol] = window._lastOvc;

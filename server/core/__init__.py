@@ -5,7 +5,7 @@ V5.8: Bu paket sadece interface tanımı içerir. Mevcut equity kodu (broker/equ
 risk_manager.py, claude_brain.py, regime_detector.py, scheduler.py) DEĞİŞTİRİLMEMİŞTİR.
 equity/ paketi bu interface'leri implement eden adapter'ları içerir.
 
-Crypto ve options modülleri ileride aynı interface'leri implement edecek.
+Options modülleri ileride aynı interface'leri implement edebilir (asset-class izolasyonu).
 """
 
 from core.asset_class import AssetClass
