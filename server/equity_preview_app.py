@@ -80,6 +80,11 @@ from anomaly_detector import detect_anomalies as legacy_detect_anomalies
 from gemini_auditor import audit_decisions as legacy_audit_decisions, get_last_audit, is_enabled as gemini_enabled
 import scheduler as legacy_sched
 from config import SECTOR_MAP
+from universe import EXTENDED_SECTOR_MAP, get_extended_universe
+
+# V6.0-ε.6: Birleşik sektör haritası — Core 15 + NDX-100 + SP500 leaders + Crypto-related (~180)
+# Core SECTOR_MAP override'lar ana, EXTENDED ek olarak ekle (Core öncelikli).
+_MERGED_SECTOR_MAP = {**EXTENDED_SECTOR_MAP, **SECTOR_MAP}
 
 # V6.0 yeni modüller (full impl)
 from equity import (
@@ -254,6 +259,162 @@ def _fetch_extended_md(lookback_days: int = 90):
     return _fetch_md_cached(lookback_days)
 
 
+# V6.0-ε.6: Lazy single-symbol metrics for extended stocks (NDX/SP500 leaders)
+def _compute_extended_metrics(symbol: str) -> dict:
+    """Core WATCHLIST'te olmayan extended sembol için bars'tan basit indikatörler hesapla.
+
+    180sn cache. 60 günlük günlük bars üzerinden RSI/EMA/ATR%/52W high-low.
+    """
+    cache_key = f"ext_metrics:{symbol}"
+    hit = _cache_get(cache_key, ttl=180)
+    if hit is not None:
+        return hit
+
+    try:
+        result = bars(symbol, timeframe="1Day", days=90)
+        bar_list = result.get("bars", [])
+        if len(bar_list) < 20:
+            return {"error": "insufficient_bars", "bar_count": len(bar_list)}
+
+        closes = [b["c"] for b in bar_list]
+        highs = [b["h"] for b in bar_list]
+        lows = [b["l"] for b in bar_list]
+        volumes = [b["v"] for b in bar_list]
+
+        last = closes[-1]
+        prev = closes[-2] if len(closes) >= 2 else last
+        change_pct = round((last - prev) / prev * 100, 2) if prev else 0
+
+        # EMA helper
+        def _ema(vals: list, period: int):
+            if len(vals) < period: return None
+            k = 2 / (period + 1)
+            ema = sum(vals[:period]) / period
+            for v in vals[period:]:
+                ema = v * k + ema * (1 - k)
+            return round(ema, 2)
+
+        ema9 = _ema(closes, 9)
+        ema21 = _ema(closes, 21)
+        ema50 = _ema(closes, 50)
+
+        # Trend (3-EMA structure)
+        if ema9 and ema21 and ema50:
+            if ema9 > ema21 > ema50:
+                trend = "strong_uptrend"
+            elif ema9 < ema21 < ema50:
+                trend = "strong_downtrend"
+            elif ema9 > ema21:
+                trend = "uptrend"
+            elif ema9 < ema21:
+                trend = "downtrend"
+            else:
+                trend = "sideways"
+        else:
+            trend = "unknown"
+
+        # RSI 14
+        rsi = None
+        if len(closes) >= 15:
+            gains, losses = [], []
+            for i in range(1, len(closes)):
+                d = closes[i] - closes[i-1]
+                gains.append(max(d, 0))
+                losses.append(max(-d, 0))
+            avg_g = sum(gains[-14:]) / 14
+            avg_l = sum(losses[-14:]) / 14
+            if avg_l == 0:
+                rsi = 100.0
+            else:
+                rs = avg_g / avg_l
+                rsi = round(100 - 100/(1+rs), 1)
+
+        # ATR%
+        atr_pct = None
+        if len(bar_list) >= 14:
+            trs = []
+            for i in range(1, len(bar_list)):
+                tr = max(
+                    highs[i] - lows[i],
+                    abs(highs[i] - closes[i-1]),
+                    abs(lows[i] - closes[i-1]),
+                )
+                trs.append(tr)
+            atr = sum(trs[-14:]) / 14
+            atr_pct = round(atr / last * 100, 2) if last else None
+
+        # Volume ratio (last 5 vs avg 30)
+        vol_ratio = None
+        if len(volumes) >= 30:
+            recent = sum(volumes[-5:]) / 5
+            baseline = sum(volumes[-30:-5]) / 25
+            vol_ratio = round(recent / baseline, 2) if baseline else None
+
+        # MACD (12-26-9)
+        macd_cross = "none"
+        if len(closes) >= 30:
+            ema12 = _ema(closes, 12)
+            ema26 = _ema(closes, 26)
+            if ema12 and ema26:
+                # Önceki değerlerle karşılaştırarak son cross'u bul
+                # Basit: son 5 candle'da cross olmuşsa rapor
+                ema12_prev = _ema(closes[:-1], 12)
+                ema26_prev = _ema(closes[:-1], 26)
+                if ema12_prev and ema26_prev:
+                    if ema12 > ema26 and ema12_prev <= ema26_prev:
+                        macd_cross = "bullish"
+                    elif ema12 < ema26 and ema12_prev >= ema26_prev:
+                        macd_cross = "bearish"
+
+        high_52w = round(max(highs), 2)
+        low_52w = round(min(lows), 2)
+
+        # Bollinger Bands (20-period, 2 std)
+        bb_upper = bb_lower = bb_pos = None
+        if len(closes) >= 20:
+            recent = closes[-20:]
+            mean = sum(recent) / 20
+            variance = sum((x - mean) ** 2 for x in recent) / 20
+            std = variance ** 0.5
+            bb_upper = round(mean + 2 * std, 2)
+            bb_lower = round(mean - 2 * std, 2)
+            if bb_upper > bb_lower:
+                bb_pos = round((last - bb_lower) / (bb_upper - bb_lower), 2)
+
+        # Momentum score (basit: change_pct + trend bonus)
+        momentum = 50
+        if change_pct: momentum += int(change_pct * 5)
+        if trend == "strong_uptrend": momentum += 20
+        elif trend == "uptrend": momentum += 10
+        elif trend == "strong_downtrend": momentum -= 20
+        elif trend == "downtrend": momentum -= 10
+        momentum = max(0, min(100, momentum))
+
+        out = {
+            "price": last,
+            "change_pct": change_pct,
+            "rsi14": rsi,
+            "atr_pct": atr_pct,
+            "trend": trend,
+            "ema9": ema9,
+            "ema21": ema21,
+            "ema50": ema50,
+            "momentum_score": momentum,
+            "volume_ratio": vol_ratio,
+            "macd_cross": macd_cross,
+            "high_52w": high_52w,
+            "low_52w": low_52w,
+            "bb_upper": bb_upper,
+            "bb_lower": bb_lower,
+            "bb_pos": bb_pos,
+            "_source": "extended_lazy_compute",
+        }
+        _cache_set(cache_key, out)
+        return out
+    except Exception as e:
+        return {"error": str(e), "_source": "extended_compute_failed"}
+
+
 # ─────────────────────────────────────────────────────────────────
 # V6.0 News + Anomaly callable wrappers (auto_executor için)
 # ─────────────────────────────────────────────────────────────────
@@ -425,18 +586,38 @@ def env_debug():
 
 @app.get("/api/equity/universe")
 def universe():
-    # V6.0-ε.5: extended = core + SECTOR_MAP'taki tüm semboller (deduplicated)
+    """V6.0-ε.6: Core 15 (auto-execute scan) + Extended ~180 (Charts/Markets dropdown).
+
+    Auto-executor sadece WATCHLIST taraması yapar (~1500 ekran/saat ≈ Core 15).
+    Charts ve Markets view'ları extended listesine erişir (NDX-100 + SP500 leaders).
+    """
     core_list = list(WATCHLIST)
-    sector_keys = sorted(SECTOR_MAP.keys())
-    extended_set = list(dict.fromkeys(core_list + sector_keys))  # preserve order
+    extended_list = get_extended_universe()  # ~180 sembol, alfabetik
+    # Sektör breakdown (UI için)
+    sector_buckets: dict[str, list] = {}
+    for sym in extended_list:
+        sec = _MERGED_SECTOR_MAP.get(sym, "Unknown")
+        sector_buckets.setdefault(sec, []).append(sym)
+    sector_summary = {
+        sec: {"count": len(syms), "tickers": syms[:5]}  # ilk 5 sample
+        for sec, syms in sorted(sector_buckets.items(), key=lambda x: -len(x[1]))
+    }
     return {
         "core": core_list,
-        "extended": extended_set,
-        "sector_map": SECTOR_MAP,
-        "asset_groups": SECTOR_MAP,  # backward-compat alias
+        "extended": extended_list,
+        "sector_map": _MERGED_SECTOR_MAP,
+        "asset_groups": _MERGED_SECTOR_MAP,  # backward-compat alias
         "core_count": len(core_list),
-        "extended_count": len(extended_set),
+        "extended_count": len(extended_list),
+        "sector_count": len(sector_buckets),
+        "sector_breakdown": sector_summary,
         "asset_class": "equity",
+        "note": (
+            "Core scan WATCHLIST'i auto-executor için (15 hisse). "
+            "Extended ~180 hisse Charts/Markets dropdown ve symbol-summary için. "
+            "Brain maliyeti tüm 180 değil, sadece scan sonrası filtre edilen smart prefilter "
+            "üzerinden gider."
+        ),
     }
 
 
@@ -629,7 +810,12 @@ def symbol_summary(symbol: str):
     sym = symbol.upper()
     md = _fetch_md_cached(90)
     coin = md.get(sym, {}) if not md.get(sym, {}).get("error") else {}
-    sector = SECTOR_MAP.get(sym, "Unknown")
+    # V6.0-ε.6: extended map ile sektör lookup (~180 sembol için)
+    sector = _MERGED_SECTOR_MAP.get(sym, "Unknown")
+
+    # V6.0-ε.6: Extended symbol için lazy compute (Core değilse)
+    if not coin and sym in _MERGED_SECTOR_MAP:
+        coin = _compute_extended_metrics(sym)
 
     # Position lookup — V6.0-ε.5: side enum cleanup + structured payload
     position = None
