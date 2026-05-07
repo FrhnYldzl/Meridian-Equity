@@ -91,7 +91,7 @@ from equity import (
     pro_panels,
 )
 
-app = FastAPI(title="Meridian Capital — Equity V6.0", version="6.0-ε")
+app = FastAPI(title="Meridian Capital — Equity V6.0", version="6.0-ε.5")
 
 
 # ─────────────────────────────────────────────────────────────────
@@ -363,7 +363,7 @@ def health():
     return {
         "status": "ok",
         "module": "equity",
-        "version": "6.0-ε",
+        "version": "6.0-ε.5",
         "asset_class": "equity",
         "dry_run": _broker_dry_run,
         "paper": True,  # V6.0-η'da live mode env var ile değişecek
@@ -425,10 +425,18 @@ def env_debug():
 
 @app.get("/api/equity/universe")
 def universe():
+    # V6.0-ε.5: extended = core + SECTOR_MAP'taki tüm semboller (deduplicated)
+    core_list = list(WATCHLIST)
+    sector_keys = sorted(SECTOR_MAP.keys())
+    extended_set = list(dict.fromkeys(core_list + sector_keys))  # preserve order
     return {
-        "core": list(WATCHLIST),
+        "core": core_list,
+        "extended": extended_set,
         "sector_map": SECTOR_MAP,
-        "core_count": len(WATCHLIST),
+        "asset_groups": SECTOR_MAP,  # backward-compat alias
+        "core_count": len(core_list),
+        "extended_count": len(extended_set),
+        "asset_class": "equity",
     }
 
 
@@ -617,38 +625,116 @@ def overview_charts(timeframe: str = "1Day", days: int = 30):
 
 @app.get("/api/equity/symbol-summary/{symbol}")
 def symbol_summary(symbol: str):
-    """Tek sembol özeti — chart sayfası için."""
+    """Tek sembol özeti — chart sayfası için. V6.0-ε.5 expanded metrics."""
     sym = symbol.upper()
     md = _fetch_md_cached(90)
     coin = md.get(sym, {}) if not md.get(sym, {}).get("error") else {}
+    sector = SECTOR_MAP.get(sym, "Unknown")
 
-    # Position lookup
+    # Position lookup — V6.0-ε.5: side enum cleanup + structured payload
     position = None
     try:
-        pos = _broker.get_position(sym)
-        if pos:
-            position = pos
+        all_positions = _broker.client.get_all_positions()
+        for p in all_positions:
+            if p.symbol == sym:
+                side_raw = str(p.side) if p.side else ""
+                position = {
+                    "qty": float(p.qty),
+                    "side": side_raw.split(".")[-1].lower(),  # clean
+                    "side_raw": side_raw,
+                    "avg_entry_price": float(p.avg_entry_price),
+                    "current_price": float(p.current_price) if p.current_price else None,
+                    "market_value": float(p.market_value),
+                    "unrealized_pl": float(p.unrealized_pl),
+                    "unrealized_plpc": float(p.unrealized_plpc),
+                    "asset_class": str(p.asset_class) if p.asset_class else "us_equity",
+                }
+                break
     except Exception:
         position = None
 
+    # Bollinger Bands ve volume tahmini (market_data'da varsa al)
+    bb_upper = coin.get("bb_upper")
+    bb_lower = coin.get("bb_lower")
+    bb_pos = coin.get("bb_pos")
+    macd_hist = coin.get("macd_hist")
+    macd_signal = coin.get("macd_signal")
+
+    # Trend signal — multi-factor (güven veren)
+    trend = coin.get("trend", "unknown")
+    rsi = coin.get("rsi14") or 50
+    macd_cross = coin.get("macd_cross", "none")
+    vol_ratio = coin.get("volume_ratio") or 0
+    signal_score = 0
+    signal_reasons = []
+    if trend in ("strong_uptrend", "uptrend"):
+        signal_score += 2 if trend == "strong_uptrend" else 1
+        signal_reasons.append(f"Trend: {trend}")
+    elif trend in ("strong_downtrend", "downtrend"):
+        signal_score -= 2 if trend == "strong_downtrend" else 1
+        signal_reasons.append(f"Trend: {trend}")
+    if macd_cross == "bullish":
+        signal_score += 1
+        signal_reasons.append("MACD bullish cross")
+    elif macd_cross == "bearish":
+        signal_score -= 1
+        signal_reasons.append("MACD bearish cross")
+    if 40 <= rsi <= 65:
+        signal_score += 1
+        signal_reasons.append(f"RSI sweet spot ({rsi:.0f})")
+    elif rsi > 75:
+        signal_score -= 1
+        signal_reasons.append(f"RSI overbought ({rsi:.0f})")
+    elif rsi < 30:
+        signal_score += 1
+        signal_reasons.append(f"RSI oversold ({rsi:.0f})")
+    if vol_ratio > 1.5:
+        signal_score += 1
+        signal_reasons.append(f"Vol ×{vol_ratio:.1f}")
+
+    if signal_score >= 3:
+        signal = "STRONG_BUY"
+    elif signal_score >= 1:
+        signal = "BUY"
+    elif signal_score <= -3:
+        signal = "STRONG_SELL"
+    elif signal_score <= -1:
+        signal = "SELL"
+    else:
+        signal = "NEUTRAL"
+
     return {
         "symbol": sym,
-        "sector": SECTOR_MAP.get(sym, "Unknown"),
+        "sector": sector,
+        "asset_group": sector,  # backward-compat alias for old JS bindings
         "market": {
             "price": coin.get("price"),
             "change_pct": coin.get("change_pct"),
             "rsi14": coin.get("rsi14"),
             "atr_pct": coin.get("atr_pct"),
-            "trend": coin.get("trend"),
+            "trend": trend,
             "ema9": coin.get("ema9"),
             "ema21": coin.get("ema21"),
             "ema50": coin.get("ema50"),
             "momentum_score": coin.get("momentum_score"),
             "volume_ratio": coin.get("volume_ratio"),
-            "macd_cross": coin.get("macd_cross"),
+            "macd_cross": macd_cross,
+            "macd_hist": macd_hist,
+            "macd_signal": macd_signal,
+            "bb_upper": bb_upper,
+            "bb_lower": bb_lower,
+            "bb_pos": bb_pos,
+            "high_52w": coin.get("high_52w"),
+            "low_52w": coin.get("low_52w"),
+        },
+        "signal": {
+            "label": signal,
+            "score": signal_score,
+            "reasons": signal_reasons,
         },
         "position": position,
         "has_position": position is not None,
+        "timestamp": datetime.now(timezone.utc).isoformat(),
     }
 
 
@@ -1129,7 +1215,7 @@ def pro_panels_index():
             {"id": 9, "name": "AI Confidence Stats", "endpoint": "/api/equity/pro/ai-confidence-stats"},
             {"id": 10, "name": "Trade Replay", "endpoint": "/api/equity/pro/trade-replay"},
         ],
-        "version": "6.0-ε",
+        "version": "6.0-ε.5",
         "asset_class": "equity",
     }
 

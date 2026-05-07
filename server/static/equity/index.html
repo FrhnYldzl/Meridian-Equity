@@ -1164,12 +1164,16 @@
       <div class="chart-panel">
         <div class="chart-controls">
           <select class="chart-symbol-select" id="chartSymbol"></select>
+          <span class="filter-pill" data-tf="15Min" data-days="1">15m</span>
           <span class="filter-pill active" data-tf="1Hour" data-days="2">1H</span>
           <span class="filter-pill" data-tf="4Hour" data-days="7">4H</span>
           <span class="filter-pill" data-tf="1Day" data-days="30">1D</span>
           <span class="filter-pill" data-tf="1Day" data-days="90">3M</span>
           <span class="filter-pill" data-tf="1Week" data-days="365">1Y</span>
-          <span style="margin-left: auto; font-family: var(--font-mono); color: var(--text-tertiary); font-size: 11px;" id="chartMeta">—</span>
+          <span style="margin-left: auto; display: flex; gap: 8px; align-items: center;">
+            <span id="chartLastUpdate" style="font-size: 10px; color: var(--text-tertiary); font-family: var(--font-mono);">—</span>
+            <span id="chartMeta" style="font-family: var(--font-mono); color: var(--text-tertiary); font-size: 11px;">—</span>
+          </span>
         </div>
         <div class="chart-canvas-wrap">
           <canvas id="mainChart"></canvas>
@@ -1178,6 +1182,15 @@
 
       <!-- RIGHT: Symbol summary + Position -->
       <aside class="symbol-panel">
+        <!-- Trading Signal banner -->
+        <div class="panel" id="symSignalPanel" style="margin-bottom: 12px; padding: 10px 14px;">
+          <div style="display: flex; align-items: center; justify-content: space-between;">
+            <span style="font-size: 10px; color: var(--text-tertiary); text-transform: uppercase; letter-spacing: 1.5px;">Signal</span>
+            <span id="symSignalBadge" style="font-weight: 800; font-size: 13px; padding: 4px 10px; border-radius: 4px; background: var(--bg-input); color: var(--text-secondary); font-family: var(--font-mono);">NEUTRAL</span>
+          </div>
+          <div id="symSignalReasons" style="margin-top: 6px; font-size: 10.5px; color: var(--text-secondary); line-height: 1.5;"></div>
+        </div>
+
         <!-- Live metrics -->
         <div class="panel" style="margin-bottom: 14px;">
           <div class="panel-head">
@@ -1204,16 +1217,32 @@
               <div class="micro-value" id="symVolRatio">—</div>
             </div>
             <div class="micro-stat">
+              <div class="micro-label">MACD</div>
+              <div class="micro-value small" id="symMacd">—</div>
+            </div>
+            <div class="micro-stat">
+              <div class="micro-label">BB Pos</div>
+              <div class="micro-value small" id="symBbPos">—</div>
+            </div>
+            <div class="micro-stat">
               <div class="micro-label">EMA 9</div>
               <div class="micro-value small" id="symEma9">—</div>
+            </div>
+            <div class="micro-stat">
+              <div class="micro-label">EMA 21</div>
+              <div class="micro-value small" id="symEma21">—</div>
             </div>
             <div class="micro-stat">
               <div class="micro-label">EMA 50</div>
               <div class="micro-value small" id="symEma50">—</div>
             </div>
+            <div class="micro-stat">
+              <div class="micro-label">52W High</div>
+              <div class="micro-value small" id="symHigh52">—</div>
+            </div>
           </div>
           <div style="margin-top: 12px; padding-top: 10px; border-top: 1px solid var(--border); display: flex; justify-content: space-between; font-size: 11px;">
-            <span style="color: var(--text-tertiary);">Asset Group</span>
+            <span style="color: var(--text-tertiary);">Sector</span>
             <span style="color: var(--equity-bright); font-weight: 700; font-family: var(--font-mono);" id="symGroup">—</span>
           </div>
         </div>
@@ -1228,7 +1257,7 @@
             <div class="empty" style="padding: 16px; font-size: 11.5px;">
               Bu sembolde henüz açık pozisyonun yok.<br/>
               <span style="color: var(--text-muted); font-size: 10.5px;">
-                V5.10'da manuel emir butonu eklenecek (paper, dry-run kapatılarak).
+                V6.0-η phased live'da manuel + auto-execute emir akışı geliyor.
               </span>
             </div>
           </div>
@@ -2607,18 +2636,41 @@ async function loadGroupMap() {
   window.GROUP_MAP = u.asset_groups;
 }
 
+// V6.0-ε.5: Auto-refresh interval handle (sadece charts view aktifken)
+let _chartsRefreshTimer = null;
+
 async function initChartsView() {
   await loadGroupMap();
   const sel = document.getElementById('chartSymbol');
   if (!sel.options.length) {
-    const u = await jget(API + '/universe');
-    sel.innerHTML = u.extended.map(s => `<option value="${s}">${s}</option>`).join('');
-    sel.value = 'SPY';
-    // Symbol değişince summary'i yükle — summary kendi içinde drawMainChart çağırır
+    try {
+      const u = await jget(API + '/universe');
+      // V6.0-ε.5: extended fallback to core if not present
+      const symList = u.extended || u.core || [];
+      if (symList.length === 0) throw new Error('Empty universe');
+      sel.innerHTML = symList.map(s => `<option value="${s}">${s}</option>`).join('');
+      sel.value = 'SPY';
+    } catch(e) {
+      // Fallback static list
+      const fallback = ['SPY','QQQ','NVDA','AAPL','MSFT','GOOGL','AMZN','META','TSLA','AMD','AVGO','COIN'];
+      sel.innerHTML = fallback.map(s => `<option value="${s}">${s}</option>`).join('');
+      sel.value = 'SPY';
+      console.error('Universe fetch failed, using fallback:', e);
+    }
     sel.addEventListener('change', loadSymbolSummary);
   }
-  // Tek istek = chart + position + metrics
   await loadSymbolSummary();
+
+  // V6.0-ε.5: Auto-refresh 30sn (charts view aktifken)
+  if (_chartsRefreshTimer) clearInterval(_chartsRefreshTimer);
+  _chartsRefreshTimer = setInterval(() => {
+    if (getRoute() === 'charts') {
+      loadSymbolSummary();
+    } else {
+      clearInterval(_chartsRefreshTimer);
+      _chartsRefreshTimer = null;
+    }
+  }, 30000);
 }
 
 async function loadSymbolSummary() {
@@ -2627,59 +2679,133 @@ async function loadSymbolSummary() {
     const s = await jget(`${API}/symbol-summary/${encodeURIComponent(sym)}`);
     const m = s.market || {};
     const p = s.position;
+    const sig = s.signal || {};
 
-    // Live metrics
-    document.getElementById('symPrice').textContent = fmt.small(m.price);
+    // Live metrics — main
+    const setText = (id, val) => { const el = document.getElementById(id); if (el) el.textContent = val; };
+    setText('symPrice', fmt.small(m.price));
     const ch = document.getElementById('symChange');
-    ch.textContent = fmt.pct(m.change_pct, true);
-    ch.className = 'sym-change ' + (m.change_pct >= 0 ? 'up' : 'down');
+    if (ch) {
+      ch.textContent = fmt.pct(m.change_pct, true);
+      ch.className = 'sym-change ' + ((m.change_pct ?? 0) >= 0 ? 'up' : 'down');
+    }
 
-    const trendCls = m.trend === 'uptrend' ? 'up' : m.trend === 'downtrend' ? 'down' : 'flat';
-    const trendLabel = m.trend === 'uptrend' ? '↑ UP' : m.trend === 'downtrend' ? '↓ DOWN' : '→ FLAT';
+    // Trend tag (more professional)
+    const trendMap = {
+      strong_uptrend: { cls: 'up', label: '↑ STRONG UP' },
+      uptrend:        { cls: 'up', label: '↑ UPTREND' },
+      sideways:       { cls: 'flat', label: '→ SIDEWAYS' },
+      downtrend:      { cls: 'down', label: '↓ DOWNTREND' },
+      strong_downtrend:{ cls: 'down', label: '↓ STRONG DOWN' },
+    };
+    const trendInfo = trendMap[m.trend] || { cls: 'flat', label: '→ ' + (m.trend || 'UNKNOWN').toUpperCase() };
     const tt = document.getElementById('symTrendTag');
-    tt.textContent = trendLabel;
-    tt.className = 'coin-trend-tag ' + trendCls;
+    if (tt) {
+      tt.textContent = trendInfo.label;
+      tt.className = 'coin-trend-tag ' + trendInfo.cls;
+    }
 
-    document.getElementById('symRsi').textContent = fmt.num(m.rsi14, 1);
-    document.getElementById('symAtr').textContent = fmt.num(m.atr_pct, 2) + '%';
-    document.getElementById('symMomentum').textContent = m.momentum_score ?? '—';
-    document.getElementById('symVolRatio').textContent = fmt.num(m.volume_ratio, 2);
-    document.getElementById('symEma9').textContent = m.ema9 ? fmt.small(m.ema9) : '—';
-    document.getElementById('symEma50').textContent = m.ema50 ? fmt.small(m.ema50) : '—';
-    document.getElementById('symGroup').textContent = s.asset_group || 'Unknown';
+    // Numeric stats
+    setText('symRsi', m.rsi14 != null ? Number(m.rsi14).toFixed(1) : '—');
+    setText('symAtr', m.atr_pct != null ? Number(m.atr_pct).toFixed(2) + '%' : '—');
+    setText('symMomentum', m.momentum_score ?? '—');
+    setText('symVolRatio', m.volume_ratio != null ? Number(m.volume_ratio).toFixed(2) + '×' : '—');
+    setText('symEma9', m.ema9 ? fmt.small(m.ema9) : '—');
+    setText('symEma21', m.ema21 ? fmt.small(m.ema21) : '—');
+    setText('symEma50', m.ema50 ? fmt.small(m.ema50) : '—');
+    setText('symHigh52', m.high_52w ? fmt.small(m.high_52w) : '—');
+
+    // MACD (with arrow + cross indicator)
+    const macdEl = document.getElementById('symMacd');
+    if (macdEl) {
+      const cross = m.macd_cross || 'none';
+      if (cross === 'bullish') {
+        macdEl.innerHTML = '<span style="color:var(--equity-bright);">↑ BULL</span>';
+      } else if (cross === 'bearish') {
+        macdEl.innerHTML = '<span style="color:var(--bear, #ef4444);">↓ BEAR</span>';
+      } else {
+        macdEl.innerHTML = '<span style="color:var(--text-tertiary);">— none</span>';
+      }
+    }
+
+    // BB Position (0-1 scale, color-coded)
+    const bbEl = document.getElementById('symBbPos');
+    if (bbEl) {
+      if (m.bb_pos != null) {
+        const pos = Number(m.bb_pos);
+        const lbl = pos < 0.2 ? 'OVERSOLD' : pos > 0.8 ? 'OVERBOUGHT' : pos < 0.4 ? 'LOWER' : pos > 0.6 ? 'UPPER' : 'MID';
+        const color = pos < 0.2 ? 'var(--equity-bright)' : pos > 0.8 ? 'var(--bear,#ef4444)' : 'var(--text-secondary)';
+        bbEl.innerHTML = `<span style="color:${color};">${pos.toFixed(2)} ${lbl}</span>`;
+      } else {
+        bbEl.textContent = '—';
+      }
+    }
+
+    setText('symGroup', s.sector || s.asset_group || 'Unknown');
+
+    // Signal banner
+    const badge = document.getElementById('symSignalBadge');
+    const reasons = document.getElementById('symSignalReasons');
+    if (badge && sig.label) {
+      const sigStyle = {
+        STRONG_BUY:  { bg: 'rgba(16,185,129,0.20)', fg: '#10b981', icon: '⏶⏶' },
+        BUY:         { bg: 'rgba(16,185,129,0.10)', fg: '#34d399', icon: '⏶' },
+        NEUTRAL:     { bg: 'var(--bg-input)',       fg: 'var(--text-secondary)', icon: '—' },
+        SELL:        { bg: 'rgba(239,68,68,0.10)',  fg: '#fca5a5', icon: '⏷' },
+        STRONG_SELL: { bg: 'rgba(239,68,68,0.20)',  fg: '#ef4444', icon: '⏷⏷' },
+      }[sig.label] || { bg: 'var(--bg-input)', fg: 'var(--text-secondary)', icon: '—' };
+      badge.style.background = sigStyle.bg;
+      badge.style.color = sigStyle.fg;
+      badge.textContent = `${sigStyle.icon} ${sig.label.replace('_',' ')}`;
+    }
+    if (reasons) {
+      const list = (sig.reasons || []).map(r => `<div>· ${r}</div>`).join('');
+      reasons.innerHTML = list || '<span style="color:var(--text-muted);">No clear signal</span>';
+    }
 
     // Position
     const chip = document.getElementById('posStatusChip');
     const content = document.getElementById('symPositionContent');
     if (p) {
-      chip.textContent = 'OPEN';
-      chip.className = 'status-chip has-pos';
+      if (chip) {
+        chip.textContent = 'OPEN · ' + (p.side?.toUpperCase() || 'LONG');
+        chip.className = 'status-chip has-pos';
+      }
       const plClass = p.unrealized_pl >= 0 ? 'up' : 'down';
+      const plPct = (p.unrealized_plpc || 0);
+      const plPctNorm = Math.abs(plPct) > 1 ? plPct : plPct * 100;  // Alpaca returns 0-1, normalize to %
       content.innerHTML = `
         <div class="pos-row"><span class="k">Quantity</span><span class="v">${p.qty}</span></div>
         <div class="pos-row"><span class="k">Avg Entry</span><span class="v">${fmt.small(p.avg_entry_price)}</span></div>
         <div class="pos-row"><span class="k">Current</span><span class="v">${fmt.small(p.current_price ?? m.price)}</span></div>
         <div class="pos-row"><span class="k">Market Value</span><span class="v big">${fmt.usd(p.market_value)}</span></div>
         <div class="pos-row"><span class="k">Unrealized P&L</span><span class="v big delta ${plClass}">${fmt.usd(p.unrealized_pl)}</span></div>
-        <div class="pos-row"><span class="k">P&L %</span><span class="v delta ${plClass}">${fmt.pct(p.unrealized_plpc * 100, true)}</span></div>
-        <div class="pos-row"><span class="k">Side</span><span class="v">${p.side?.toUpperCase()}</span></div>
+        <div class="pos-row"><span class="k">P&L %</span><span class="v delta ${plClass}">${fmt.pct(plPctNorm, true)}</span></div>
+        <div class="pos-row"><span class="k">Side</span><span class="v">${(p.side || 'long').toUpperCase()}</span></div>
       `;
       window.CURRENT_POSITION_ENTRY = p.avg_entry_price;
     } else {
-      chip.textContent = 'NO POSITION';
-      chip.className = 'status-chip';
+      if (chip) {
+        chip.textContent = 'NO POSITION';
+        chip.className = 'status-chip';
+      }
       content.innerHTML = `
         <div class="empty" style="padding: 16px; font-size: 11.5px;">
           Bu sembolde henüz açık pozisyonun yok.<br/>
           <span style="color: var(--text-muted); font-size: 10.5px;">
-            V5.10'da manuel emir butonu eklenecek (paper, dry-run kapatılarak).
+            V6.0-η phased live'da manuel + auto-execute emir akışı geliyor.
           </span>
         </div>`;
       window.CURRENT_POSITION_ENTRY = null;
     }
-    // Always re-draw chart so entry overlay refreshes (also handles first load)
+
+    // Last update timestamp
+    const lu = document.getElementById('chartLastUpdate');
+    if (lu) lu.textContent = '⟳ ' + new Date().toLocaleTimeString();
+
+    // Always re-draw chart (entry overlay)
     await drawMainChart();
-  } catch(e){console.error(e);}
+  } catch(e){console.error('loadSymbolSummary:', e);}
 }
 
 async function drawMainChart() {
