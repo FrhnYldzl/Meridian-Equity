@@ -358,6 +358,37 @@ class EquityAutoExecutor:
             self.run_count += 1
             return result
 
+        # V6.0-ε.4: Market-hours pre-flight gate (LIVE MODE için zorunlu)
+        # Paper modda kapalı piyasada bile pipeline koşar (analiz amaçlı).
+        # Live modda piyasa kapalı/extended ise YENİ pozisyon açılmaz —
+        # sadece exit/close lifecycle çalışır.
+        if self.live_mode and not force:
+            try:
+                from market_scanner import is_market_open as _imo, is_premarket as _ipm
+                _market_open = bool(_imo())
+                _pre = bool(_ipm())
+                result["market_open"] = _market_open
+                result["premarket"] = _pre
+                if not _market_open and not _pre:
+                    result["blocked_by_gate"]["market_closed"] = (
+                        "Live mode + market closed/post-hours → only close lifecycle ran, no new entries."
+                    )
+                    result["summary"] = "MARKET CLOSED (live mode skipped new entries)"
+                    self.last_run = result
+                    self.run_count += 1
+                    try: self.journal.log_gate_block(pipeline_run_id, "market_closed", str(result["blocked_by_gate"]["market_closed"]))
+                    except: pass
+                    return result
+            except Exception as e:
+                result["errors"].append(f"market_hours_check: {e}")
+                # Market hours kontrol edilemezse live modda güvenliği seç → bloke
+                if self.live_mode:
+                    result["blocked_by_gate"]["market_hours_unknown"] = str(e)
+                    result["summary"] = "Market hours check failed — live mode aborts as safety"
+                    self.last_run = result
+                    self.run_count += 1
+                    return result
+
         # 2. Trade Close Lifecycle (manual close detect)
         try:
             close_summary = self._check_exits_and_close(pipeline_run_id)

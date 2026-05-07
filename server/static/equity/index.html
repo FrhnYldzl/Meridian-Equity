@@ -897,12 +897,61 @@
   @media (max-width: 1000px) {
     .hero, .grid-2, .grid-3 { grid-template-columns: 1fr; }
   }
+
+  /* V6.0-ε.4: Mobile/Tablet responsive (≤768px) */
+  @media (max-width: 768px) {
+    body { display: block; overflow-x: hidden; }
+    .sidebar {
+      position: fixed; top: 0; left: -260px; height: 100vh; width: 260px;
+      z-index: 1000; transition: left 0.25s ease; box-shadow: 8px 0 32px rgba(0,0,0,0.6);
+    }
+    .sidebar.open { left: 0; }
+    .main { margin-left: 0; padding: 12px; padding-top: 56px; }
+    .topbar {
+      position: fixed; top: 0; left: 0; right: 0; z-index: 900;
+      background: var(--bg-card); padding: 10px 14px;
+      display: flex; flex-wrap: wrap; gap: 8px; align-items: center;
+      border-bottom: 1px solid var(--border); height: auto;
+    }
+    .topbar-status { flex: 1 1 100%; gap: 6px; flex-wrap: wrap; }
+    .topbar-actions { gap: 6px; flex-wrap: wrap; }
+    .status-chip { font-size: 10px; padding: 3px 8px; }
+    .badge { font-size: 9px; padding: 3px 6px; }
+    .btn { font-size: 11px; padding: 6px 10px; }
+    .account-select { font-size: 11px; max-width: 140px; }
+    .mobile-menu-btn {
+      display: inline-flex; align-items: center; justify-content: center;
+      width: 36px; height: 36px; background: var(--bg-input); border: 1px solid var(--border);
+      border-radius: 4px; color: var(--equity-bright); cursor: pointer; font-size: 18px;
+    }
+    .view-header { flex-direction: column; align-items: flex-start; gap: 8px; }
+    .view-title { font-size: 16px; }
+    .view-subtitle { font-size: 11px; }
+    .panel { padding: 12px; }
+    .panel-title { font-size: 13px; }
+    .hero-card { padding: 14px; }
+    .hero-value.large { font-size: 24px; }
+    .ovc-card, .coin-card { padding: 10px; }
+    table.table { font-size: 10px; }
+    table.table th, table.table td { padding: 4px 6px; }
+    .filter-pill { font-size: 10px; padding: 3px 8px; }
+    .toolbar-input { font-size: 12px; padding: 6px 8px; }
+    /* Pro panels grid → tek sütun */
+    #view-pro .grid-2 { grid-template-columns: 1fr !important; }
+  }
+  .mobile-menu-btn { display: none; }
+  .sidebar-overlay {
+    display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.5); z-index: 999;
+  }
+  .sidebar-overlay.show { display: block; }
 </style>
 </head>
 <body>
 
+<div class="sidebar-overlay" id="sidebarOverlay" onclick="toggleSidebar()"></div>
+
 <!-- ─── SIDEBAR ─── -->
-<aside class="sidebar">
+<aside class="sidebar" id="sidebar">
   <div class="sidebar-brand">
     <div class="brand-logo">
       <div class="brand-icon">M</div>
@@ -960,6 +1009,7 @@
 
   <!-- TOPBAR -->
   <div class="topbar">
+    <button class="mobile-menu-btn" onclick="toggleSidebar()" aria-label="Toggle menu">☰</button>
     <div class="topbar-status">
       <span class="status-chip" id="regimeChip">REGIME: <span id="regimeLabel">—</span></span>
       <span class="status-chip spy">SPY: <span id="spyMini">—</span></span>
@@ -1708,6 +1758,24 @@ async function jget(path) {
   if (!r.ok) throw new Error(path + ' → ' + r.status);
   return r.json();
 }
+
+// ─── MOBILE SIDEBAR ───────────────────────────────────────────
+function toggleSidebar() {
+  const sb = document.getElementById('sidebar');
+  const ov = document.getElementById('sidebarOverlay');
+  const open = sb.classList.toggle('open');
+  ov.classList.toggle('show', open);
+}
+// Sidebar route tıklamasında otomatik kapan (mobilde)
+document.addEventListener('click', (e) => {
+  const navItem = e.target.closest('.nav-item');
+  if (navItem && window.innerWidth <= 768) {
+    setTimeout(() => {
+      document.getElementById('sidebar')?.classList.remove('open');
+      document.getElementById('sidebarOverlay')?.classList.remove('show');
+    }, 100);
+  }
+});
 
 // ─── ROUTING ────────────────────────────────────────────────────
 function getRoute() {

@@ -53,6 +53,7 @@ V6.0-ε Pro Panels (10 panel — Pro Full):
 
 import os
 import time
+from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Optional
@@ -201,6 +202,40 @@ def _cache_get(key: str, ttl: int = DEFAULT_TTL):
 
 def _cache_set(key: str, data):
     _cache[key] = {"ts": time.time(), "data": data}
+
+
+# V6.0-ε.4: Shared Alpaca data client (module-level, parallel-safe singleton)
+_alpaca_data_client = None
+_alpaca_data_client_lock = None  # init lazy
+
+
+def _get_alpaca_data_client():
+    """Singleton Alpaca historical data client — paralel bars fetch için."""
+    global _alpaca_data_client
+    if _alpaca_data_client is None:
+        from alpaca.data.historical import StockHistoricalDataClient
+        _alpaca_data_client = StockHistoricalDataClient(
+            api_key=os.getenv("ALPACA_API_KEY"),
+            secret_key=os.getenv("ALPACA_SECRET_KEY"),
+        )
+    return _alpaca_data_client
+
+
+# Pre-compiled timeframe map (module load'da bir kere)
+def _build_tf_map():
+    from alpaca.data.timeframe import TimeFrame, TimeFrameUnit
+    return {
+        "1Min": TimeFrame(1, TimeFrameUnit.Minute),
+        "5Min": TimeFrame(5, TimeFrameUnit.Minute),
+        "15Min": TimeFrame(15, TimeFrameUnit.Minute),
+        "1Hour": TimeFrame(1, TimeFrameUnit.Hour),
+        "4Hour": TimeFrame(4, TimeFrameUnit.Hour),
+        "1Day": TimeFrame.Day,
+        "1Week": TimeFrame.Week,
+    }
+
+
+_ALPACA_TF_MAP = _build_tf_map()
 
 
 def _fetch_md_cached(lookback_days: int = 90):
@@ -473,27 +508,12 @@ def bars(symbol: str, timeframe: str = "1Day", days: int = 30):
     if hit is not None:
         return hit
 
-    from datetime import timedelta
-    from alpaca.data.historical import StockHistoricalDataClient
-    from alpaca.data.requests import StockBarsRequest
-    from alpaca.data.timeframe import TimeFrame, TimeFrameUnit
-
-    tf_map = {
-        "1Min": TimeFrame(1, TimeFrameUnit.Minute),
-        "5Min": TimeFrame(5, TimeFrameUnit.Minute),
-        "15Min": TimeFrame(15, TimeFrameUnit.Minute),
-        "1Hour": TimeFrame(1, TimeFrameUnit.Hour),
-        "4Hour": TimeFrame(4, TimeFrameUnit.Hour),
-        "1Day": TimeFrame.Day,
-        "1Week": TimeFrame.Week,
-    }
-    tf = tf_map.get(timeframe, TimeFrame.Day)
+    # V6.0-ε.4: shared client instance + tf_map module-scoped (paralel fetch için kritik)
+    client = _get_alpaca_data_client()
+    tf = _ALPACA_TF_MAP.get(timeframe, _ALPACA_TF_MAP["1Day"])
 
     try:
-        client = StockHistoricalDataClient(
-            api_key=os.getenv("ALPACA_API_KEY"),
-            secret_key=os.getenv("ALPACA_SECRET_KEY"),
-        )
+        from alpaca.data.requests import StockBarsRequest
         end = datetime.now(timezone.utc)
         start = end - timedelta(days=days)
         req = StockBarsRequest(
@@ -526,38 +546,27 @@ def overview_charts(timeframe: str = "1Day", days: int = 30):
 
     out = {"benchmark": None, "btc": None, "positions": []}
 
-    # SPY benchmark
-    spy = bars("SPY", timeframe=timeframe, days=days)
-    benchmark = {
-        "symbol": "SPY",
-        "bars": spy.get("bars", []),
-        "sector": "ETF",
-    }
-    out["benchmark"] = benchmark
-    out["btc"] = benchmark  # V6.0-ε.2: backward-compat alias for legacy 'data.btc' bindings
-
-    # Açık pozisyonlar
+    # ─── V6.0-ε.4: Parallel bars fetch (5s → ~500ms) ───
+    # Önce sembol listesini topla (SPY + her açık pozisyon)
+    pos_meta: list[dict] = []
     try:
         all_positions = _broker.client.get_all_positions()
         for p in all_positions:
             ac = str(p.asset_class).lower() if p.asset_class else ""
             if "us_equity" not in ac and ac != "":
                 continue
-            sym = p.symbol
-            b = bars(sym, timeframe=timeframe, days=days)
-            # V6.0-ε.2: clean side enum ("PositionSide.LONG" → "long")
             side_raw = str(p.side) if p.side else ""
             side_clean = side_raw.split(".")[-1].lower()
+            sym = p.symbol
             sector = SECTOR_MAP.get(sym, "Unknown")
-            out["positions"].append({
+            pos_meta.append({
                 "symbol": sym,
-                "bars": b.get("bars", []),
                 "sector": sector,
-                "asset_group": sector,  # V6.0-ε.2: backward-compat alias
+                "asset_group": sector,
                 "position": {
                     "qty": float(p.qty),
-                    "side": side_clean,        # "long" / "short"
-                    "side_raw": side_raw,       # original Alpaca enum
+                    "side": side_clean,
+                    "side_raw": side_raw,
                     "avg_entry_price": float(p.avg_entry_price),
                     "current_price": float(p.current_price) if p.current_price else None,
                     "market_value": float(p.market_value),
@@ -568,9 +577,40 @@ def overview_charts(timeframe: str = "1Day", days: int = 30):
     except Exception as e:
         out["error"] = f"positions fetch: {e}"
 
+    symbols_to_fetch = ["SPY"] + [pm["symbol"] for pm in pos_meta]
+
+    # ThreadPoolExecutor ile paralel — Alpaca SDK sync, IO-bound, threading uygun
+    with ThreadPoolExecutor(max_workers=min(len(symbols_to_fetch), 12)) as ex:
+        bar_results = dict(zip(
+            symbols_to_fetch,
+            ex.map(lambda s: bars(s, timeframe=timeframe, days=days), symbols_to_fetch)
+        ))
+
+    # SPY benchmark
+    spy = bar_results.get("SPY", {})
+    benchmark = {
+        "symbol": "SPY",
+        "bars": spy.get("bars", []),
+        "sector": "ETF",
+    }
+    out["benchmark"] = benchmark
+    out["btc"] = benchmark  # backward-compat
+
+    # Pozisyon kartları
+    for pm in pos_meta:
+        b = bar_results.get(pm["symbol"], {})
+        out["positions"].append({
+            "symbol": pm["symbol"],
+            "bars": b.get("bars", []),
+            "sector": pm["sector"],
+            "asset_group": pm["asset_group"],
+            "position": pm["position"],
+        })
+
     out["timeframe"] = timeframe
     out["days"] = days
     out["count"] = 1 + len(out["positions"])
+    out["fetch_strategy"] = "parallel_threadpool"
     _cache_set(cache_key, out)
     return out
 
@@ -616,14 +656,15 @@ def symbol_summary(symbol: str):
 
 @app.get("/api/equity/brain")
 def brain_decisions(fresh: bool = False):
-    """Claude AI multi-step reasoning. 60sn cache.
+    """Claude AI multi-step reasoning.
 
-    V6.0-δ: Cache hit halinde no API call (zero cost).
-    Cache miss → EquityBrain.run_brain (prompt caching enabled).
+    V6.0-ε.4: 300sn endpoint cache (TTL Anthropic prompt caching ile aynı).
+    Manuel fresh için ?fresh=true.
+    Cache hit halinde zero API call.
     """
     cache_key = "brain:equity"
     if not fresh:
-        hit = _cache_get(cache_key, ttl=60)
+        hit = _cache_get(cache_key, ttl=300)  # 5dk — Anthropic ephemeral cache TTL ile aligned
         if hit is not None:
             # Cache hit — telemetry'ye yansıt (token=0)
             _record_brain_usage({"input_tokens": 0, "output_tokens": 0,
