@@ -414,10 +414,14 @@ def positions():
             ac = str(p.asset_class).lower() if p.asset_class else ""
             if "us_equity" not in ac and ac != "":
                 continue
+            # V6.0-ε.2: clean side enum
+            side_raw = str(p.side) if p.side else ""
+            side_clean = side_raw.split(".")[-1].lower()
             result.append({
                 "symbol": p.symbol,
                 "qty": float(p.qty),
-                "side": str(p.side),
+                "side": side_clean,        # "long" / "short"
+                "side_raw": side_raw,
                 "avg_entry_price": float(p.avg_entry_price),
                 "current_price": float(p.current_price) if p.current_price else None,
                 "market_value": float(p.market_value),
@@ -520,15 +524,17 @@ def overview_charts(timeframe: str = "1Day", days: int = 30):
     if hit is not None:
         return hit
 
-    out = {"benchmark": None, "positions": []}
+    out = {"benchmark": None, "btc": None, "positions": []}
 
     # SPY benchmark
     spy = bars("SPY", timeframe=timeframe, days=days)
-    out["benchmark"] = {
+    benchmark = {
         "symbol": "SPY",
         "bars": spy.get("bars", []),
         "sector": "ETF",
     }
+    out["benchmark"] = benchmark
+    out["btc"] = benchmark  # V6.0-ε.2: backward-compat alias for legacy 'data.btc' bindings
 
     # Açık pozisyonlar
     try:
@@ -539,13 +545,19 @@ def overview_charts(timeframe: str = "1Day", days: int = 30):
                 continue
             sym = p.symbol
             b = bars(sym, timeframe=timeframe, days=days)
+            # V6.0-ε.2: clean side enum ("PositionSide.LONG" → "long")
+            side_raw = str(p.side) if p.side else ""
+            side_clean = side_raw.split(".")[-1].lower()
+            sector = SECTOR_MAP.get(sym, "Unknown")
             out["positions"].append({
                 "symbol": sym,
                 "bars": b.get("bars", []),
-                "sector": SECTOR_MAP.get(sym, "Unknown"),
+                "sector": sector,
+                "asset_group": sector,  # V6.0-ε.2: backward-compat alias
                 "position": {
                     "qty": float(p.qty),
-                    "side": str(p.side),
+                    "side": side_clean,        # "long" / "short"
+                    "side_raw": side_raw,       # original Alpaca enum
                     "avg_entry_price": float(p.avg_entry_price),
                     "current_price": float(p.current_price) if p.current_price else None,
                     "market_value": float(p.market_value),

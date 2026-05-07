@@ -11,7 +11,7 @@
 <style>
   /* ═══════════════════════════════════════════════════════════════
      MERIDIAN CAPITAL — EQUITY TERMINAL · V5.9-δ (SPA)
-     Bitcoin orange + dark navy · Multi-page navigation
+     Equity green (#10b981) + dark navy · Multi-page navigation (V6.0-ε)
      ═══════════════════════════════════════════════════════════════ */
   *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
   :root {
@@ -217,7 +217,7 @@
   .status-chip.bull { background: var(--green-dim); border-color: var(--green); color: var(--green-bright); }
   .status-chip.bear { background: var(--red-dim); border-color: var(--red); color: var(--red-bright); }
   .status-chip.neutral { background: var(--bg-tertiary); }
-  .status-chip.btc { background: var(--equity-dim); border-color: var(--equity-border); color: var(--equity-bright); }
+  .status-chip.spy, .status-chip.btc { background: var(--equity-dim); border-color: var(--equity-border); color: var(--equity-bright); }
 
   .badge {
     display: inline-block;
@@ -540,7 +540,7 @@
     border-color: var(--equity-border);
     box-shadow: 0 4px 16px rgba(16, 185, 129, 0.1);
   }
-  .ovc-card.btc {
+  .ovc-card.spy, .ovc-card.btc {
     background: linear-gradient(135deg, var(--bg-card), var(--equity-dim) 60%);
     border-color: var(--equity-border);
   }
@@ -962,7 +962,7 @@
   <div class="topbar">
     <div class="topbar-status">
       <span class="status-chip" id="regimeChip">REGIME: <span id="regimeLabel">—</span></span>
-      <span class="status-chip btc">SPY: <span id="spyMini">—</span></span>
+      <span class="status-chip spy">SPY: <span id="spyMini">—</span></span>
       <span class="status-chip" id="scanChip">SCAN: <span id="scanModeLabel">—</span></span>
     </div>
     <div class="topbar-actions">
@@ -990,14 +990,14 @@
     <!-- HERO -->
     <div class="hero">
       <div class="hero-card featured">
-        <div class="hero-label">Bitcoin — Live</div>
-        <div class="hero-value large" id="btcPrice">—</div>
+        <div class="hero-label">SPY — Live (Benchmark)</div>
+        <div class="hero-value large" id="spyPrice">—</div>
         <div class="hero-meta">
-          <span class="delta" id="btcDelta">—</span>
+          <span class="delta" id="spyDelta">—</span>
           <span>·</span>
-          <span>RSI <span id="btcRsi">—</span></span>
+          <span>RSI <span id="spyRsi">—</span></span>
           <span>·</span>
-          <span>ATR% <span id="btcAtr">—</span></span>
+          <span>ATR% <span id="spyAtr">—</span></span>
         </div>
       </div>
       <div class="hero-card">
@@ -1856,14 +1856,14 @@ async function loadMarketDataCore() {
           </div>
         </div>`;
     }).join('');
-    const btc = md['SPY'];
-    if (btc && !btc.error) {
-      document.getElementById('btcPrice').textContent = fmt.usd(btc.price);
-      const dEl = document.getElementById('btcDelta');
-      dEl.textContent = fmt.pct(btc.change_pct, true);
-      dEl.className = 'delta ' + (btc.change_pct >= 0 ? 'up' : 'down');
-      document.getElementById('btcRsi').textContent = fmt.num(btc.rsi14, 1);
-      document.getElementById('btcAtr').textContent = fmt.num(btc.atr_pct, 2);
+    const spy = md['SPY'];
+    if (spy && !spy.error) {
+      document.getElementById('spyPrice').textContent = fmt.usd(spy.price);
+      const dEl = document.getElementById('spyDelta');
+      dEl.textContent = fmt.pct(spy.change_pct, true);
+      dEl.className = 'delta ' + (spy.change_pct >= 0 ? 'up' : 'down');
+      document.getElementById('spyRsi').textContent = fmt.num(spy.rsi14, 1);
+      document.getElementById('spyAtr').textContent = fmt.num(spy.atr_pct, 2);
     }
   } catch(e){console.error(e);}
 }
@@ -2489,7 +2489,7 @@ document.addEventListener('click', (e) => {
     drawMainChart();
     return;
   }
-  // Overview chart timeframe (BTC + position cards)
+  // Overview chart timeframe (SPY benchmark + position cards)
   const otfp = e.target.closest('#view-overview .filter-pill');
   if (otfp && otfp.dataset.otf) {
     document.querySelectorAll('#view-overview .filter-pill').forEach(p => p.classList.remove('active'));
@@ -2704,14 +2704,14 @@ async function loadOverviewCharts() {
 
     const cards = [];
 
-    // BTC card (always)
+    // SPY benchmark card (always)
     if (data.btc?.bars?.length) {
       const last = data.btc.bars[data.btc.bars.length - 1].c;
       const first = data.btc.bars[0].c;
       const changePct = first > 0 ? ((last - first) / first * 100) : 0;
       const cls = changePct >= 0 ? 'up' : 'down';
       cards.push(`
-        <div class="ovc-card btc" onclick="openSymbolChart('SPY')">
+        <div class="ovc-card spy" onclick="openSymbolChart('SPY')">
           <div class="ovc-head">
             <span class="ovc-symbol">SPY</span>
             <span class="ovc-tag">L1 · BENCHMARK</span>
@@ -2754,16 +2754,16 @@ async function loadOverviewCharts() {
         </div>`);
     }
 
-    // Empty state if no positions (BTC alone is fine, but add hint)
+    // Empty state if no positions (SPY benchmark alone is fine, but add hint)
     if (positions.length === 0 && data.btc?.bars?.length) {
       cards.push(`
         <div class="ovc-empty">
           <span style="font-size: 24px;">💼</span><br/>
-          <strong style="color: var(--text-secondary);">Henüz açık pozisyonn yok</strong><br/>
+          <strong style="color: var(--text-secondary);">Henüz açık pozisyon yok</strong><br/>
           <span style="font-size: 11px;">İşlem açtığında her pozisyonun grafiği SPY'in yanında burada görünecek.</span><br/>
           <span style="font-size: 11px; color: var(--text-muted);">
             Şu an sistem <span class="accent">read-only</span> + <span class="accent">dry-run</span> modda.
-            Manuel emir butonu V5.10'da geliyor.
+            V6.0-η'da live trade akışı geliyor.
           </span>
         </div>`);
     }
