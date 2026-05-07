@@ -22,6 +22,7 @@ from equity.journal import EquityJournal
 from equity.audit_impl import EquityAuditor
 from equity.auto_executor import EquityAutoExecutor, PHASE_PROFILES
 from equity.brain_impl import EquityBrain, EQUITY_SYSTEM_PROMPT, DEFAULT_MODEL as EQUITY_BRAIN_DEFAULT_MODEL
+from equity import pro_panels
 
 __all__ = [
     # V5.8 adapters
@@ -38,4 +39,5 @@ __all__ = [
     "EquityBrain",
     "EQUITY_SYSTEM_PROMPT",
     "EQUITY_BRAIN_DEFAULT_MODEL",
+    "pro_panels",
 ]

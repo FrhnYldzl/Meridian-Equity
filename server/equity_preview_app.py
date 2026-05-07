@@ -36,6 +36,19 @@ Endpoint katalog (Meridian Equity V6.0):
     GET  /api/equity/env-debug          → Diagnostic (env var mask'leri)
     GET  /api/equity/live-config        → Live phase + safety state
     GET  /api/modules                   → Cross-module switcher
+
+V6.0-ε Pro Panels (10 panel — Pro Full):
+    GET  /api/equity/pro/index                  → Panel kataloğu
+    GET  /api/equity/pro/sector-heatmap         → Sektör heatmap
+    GET  /api/equity/pro/earnings-calendar      → Earnings timeline
+    GET  /api/equity/pro/mtf/{symbol}           → Multi-timeframe analysis
+    GET  /api/equity/pro/correlation-matrix     → Cross-symbol correlation
+    GET  /api/equity/pro/win-rate-trend         → Haftalık win rate
+    GET  /api/equity/pro/risk-dashboard         → Pozisyon risk metrikleri
+    GET  /api/equity/pro/gap-scanner            → Gap + volume scanner
+    GET  /api/equity/pro/news-timeline          → News headline timeline
+    GET  /api/equity/pro/ai-confidence-stats    → Brain confidence dağılımı
+    GET  /api/equity/pro/trade-replay           → Trade event replay
 """
 
 import os
@@ -74,9 +87,10 @@ from equity import (
     EquityAutoExecutor,
     EquityBrain,
     PHASE_PROFILES,
+    pro_panels,
 )
 
-app = FastAPI(title="Meridian Capital — Equity V6.0", version="6.0-δ")
+app = FastAPI(title="Meridian Capital — Equity V6.0", version="6.0-ε")
 
 
 # ─────────────────────────────────────────────────────────────────
@@ -140,6 +154,10 @@ print(f"[EquityBrain] model={_brain.model} | enabled={_brain.enabled} | key_sour
 _brain_usage_log: list = []
 _BRAIN_USAGE_MAX = 100
 
+# V6.0-ε: AI confidence stats için brain karar log'u
+_brain_decisions_log: list = []
+_BRAIN_DECISIONS_MAX = 50
+
 def _record_brain_usage(usage: dict, cached: bool = False):
     """Cost telemetry — son N çağrı sakla, rolling."""
     if not usage:
@@ -152,6 +170,24 @@ def _record_brain_usage(usage: dict, cached: bool = False):
     _brain_usage_log.append(entry)
     if len(_brain_usage_log) > _BRAIN_USAGE_MAX:
         del _brain_usage_log[: len(_brain_usage_log) - _BRAIN_USAGE_MAX]
+
+
+def _record_brain_decisions(result: dict):
+    """V6.0-ε: Decisions snapshot — confidence stats için."""
+    if not isinstance(result, dict):
+        return
+    decisions = result.get("decisions") or []
+    if not decisions:
+        return
+    entry = {
+        "ts": result.get("timestamp") or datetime.now(timezone.utc).isoformat(),
+        "regime": result.get("regime"),
+        "active_strategy": result.get("active_strategy"),
+        "decisions": decisions,
+    }
+    _brain_decisions_log.append(entry)
+    if len(_brain_decisions_log) > _BRAIN_DECISIONS_MAX:
+        del _brain_decisions_log[: len(_brain_decisions_log) - _BRAIN_DECISIONS_MAX]
 
 # Cache layer — 30sn TTL
 _cache: dict = {}
@@ -292,7 +328,7 @@ def health():
     return {
         "status": "ok",
         "module": "equity",
-        "version": "6.0-δ",
+        "version": "6.0-ε",
         "asset_class": "equity",
         "dry_run": _broker_dry_run,
         "paper": True,  # V6.0-η'da live mode env var ile değişecek
@@ -622,6 +658,9 @@ def brain_decisions(fresh: bool = False):
         usage["model"] = _brain.model
         _record_brain_usage(usage, cached=False)
 
+    # V6.0-ε: decisions log → confidence stats panel
+    _record_brain_decisions(result)
+
     _cache_set(cache_key, result)
     return result
 
@@ -825,6 +864,213 @@ def journal_run_timeline(pipeline_run_id: str):
 @app.get("/api/equity/journal/open-trades")
 def journal_open_trades():
     return {"open_trades": _journal.get_open_trades()}
+
+
+# ═════════════════════════════════════════════════════════════════
+# V6.0-ε: PRO PANELS (10 panels)
+# ═════════════════════════════════════════════════════════════════
+
+# ─── 1. Sektör Heatmap ───────────────────────────────────────────
+
+@app.get("/api/equity/pro/sector-heatmap")
+def pro_sector_heatmap():
+    """Sektör bazlı momentum + winners/losers + rotation score."""
+    cache_key = "pro:sector-heatmap"
+    hit = _cache_get(cache_key, ttl=60)
+    if hit is not None:
+        return hit
+    md = _fetch_md_cached(90)
+    result = pro_panels.compute_sector_heatmap(md, SECTOR_MAP)
+    _cache_set(cache_key, result)
+    return result
+
+
+# ─── 2. Earnings Calendar ────────────────────────────────────────
+
+@app.get("/api/equity/pro/earnings-calendar")
+def pro_earnings_calendar(days_ahead: int = 14):
+    """Yaklaşan earnings — Alpaca news heuristic. Best-effort."""
+    cache_key = f"pro:earnings:{days_ahead}"
+    hit = _cache_get(cache_key, ttl=900)  # 15dk
+    if hit is not None:
+        return hit
+    result = pro_panels.compute_earnings_calendar(
+        news_fetcher=lambda syms: get_market_sentiment(syms),
+        symbols=list(WATCHLIST),
+        days_ahead=days_ahead,
+    )
+    _cache_set(cache_key, result)
+    return result
+
+
+# ─── 3. MTF Analysis ─────────────────────────────────────────────
+
+@app.get("/api/equity/pro/mtf/{symbol}")
+def pro_mtf_summary(symbol: str):
+    """1Day/4Hour/1Hour/15Min trend alignment."""
+    sym = symbol.upper()
+    cache_key = f"pro:mtf:{sym}"
+    hit = _cache_get(cache_key, ttl=120)
+    if hit is not None:
+        return hit
+    result = pro_panels.compute_mtf_summary(sym, bars_fetcher=bars)
+    _cache_set(cache_key, result)
+    return result
+
+
+# ─── 4. Correlation Matrix ───────────────────────────────────────
+
+@app.get("/api/equity/pro/correlation-matrix")
+def pro_correlation_matrix(days: int = 30,
+                           timeframe: str = "1Day",
+                           symbols: Optional[str] = None):
+    """Cross-symbol getiri korelasyonu (pure Python Pearson)."""
+    sym_list = ([s.strip().upper() for s in symbols.split(",") if s.strip()]
+                if symbols else list(WATCHLIST)[:10])
+    cache_key = f"pro:corr:{','.join(sym_list)}:{timeframe}:{days}"
+    hit = _cache_get(cache_key, ttl=600)  # 10dk
+    if hit is not None:
+        return hit
+    result = pro_panels.compute_correlation_matrix(
+        symbols=sym_list, bars_fetcher=bars, days=days, timeframe=timeframe,
+    )
+    _cache_set(cache_key, result)
+    return result
+
+
+# ─── 5. Win Rate Trend ───────────────────────────────────────────
+
+@app.get("/api/equity/pro/win-rate-trend")
+def pro_win_rate_trend(days: int = 90, bucket_days: int = 7):
+    """Journal'dan haftalık win rate trend."""
+    return pro_panels.compute_win_rate_trend(
+        journal=_journal, days=days, bucket_days=bucket_days,
+    )
+
+
+# ─── 6. Risk Dashboard ───────────────────────────────────────────
+
+@app.get("/api/equity/pro/risk-dashboard")
+def pro_risk_dashboard():
+    """Pozisyon-seviyesi + portföy-seviyesi risk metrikleri."""
+    cache_key = "pro:risk-dashboard"
+    hit = _cache_get(cache_key, ttl=30)
+    if hit is not None:
+        return hit
+
+    # Hesap + pozisyonlar
+    try:
+        acct = _broker.get_account_status()
+    except Exception as e:
+        acct = {"error": str(e), "equity": 0, "cash": 0}
+
+    try:
+        positions_raw = _broker.client.get_all_positions()
+        positions = []
+        for p in positions_raw:
+            ac = str(p.asset_class).lower() if p.asset_class else ""
+            if "us_equity" not in ac and ac != "":
+                continue
+            positions.append({
+                "symbol": p.symbol, "qty": float(p.qty),
+                "avg_entry_price": float(p.avg_entry_price),
+                "current_price": float(p.current_price) if p.current_price else None,
+                "market_value": float(p.market_value),
+                "unrealized_pl": float(p.unrealized_pl),
+                "unrealized_plpc": float(p.unrealized_plpc),
+            })
+    except Exception as e:
+        positions = []
+        acct["positions_error"] = str(e)
+
+    md = _fetch_md_cached(90)
+    result = pro_panels.compute_risk_dashboard(
+        positions=positions, account=acct,
+        market_data=md, sector_map=SECTOR_MAP,
+    )
+    _cache_set(cache_key, result)
+    return result
+
+
+# ─── 7. Gap Scanner ──────────────────────────────────────────────
+
+@app.get("/api/equity/pro/gap-scanner")
+def pro_gap_scanner(min_gap_pct: float = 1.0):
+    """En büyük gap'ler ile volume confirmation taraması."""
+    cache_key = f"pro:gap:{min_gap_pct}"
+    hit = _cache_get(cache_key, ttl=60)
+    if hit is not None:
+        return hit
+    md = _fetch_md_cached(90)
+    result = pro_panels.compute_gap_scanner(
+        market_data=md, sector_map=SECTOR_MAP, min_gap_pct=min_gap_pct,
+    )
+    _cache_set(cache_key, result)
+    return result
+
+
+# ─── 8. News Timeline ────────────────────────────────────────────
+
+@app.get("/api/equity/pro/news-timeline")
+def pro_news_timeline(hours: int = 24):
+    """Headline timeline (sentiment + ts)."""
+    cache_key = f"pro:news-timeline:{hours}"
+    hit = _cache_get(cache_key, ttl=600)
+    if hit is not None:
+        return hit
+    try:
+        news_result = get_market_sentiment(WATCHLIST)
+    except Exception as e:
+        news_result = {"error": str(e)}
+    result = pro_panels.compute_news_timeline(news_result, hours=hours)
+    _cache_set(cache_key, result)
+    return result
+
+
+# ─── 9. AI Confidence Stats ──────────────────────────────────────
+
+@app.get("/api/equity/pro/ai-confidence-stats")
+def pro_ai_confidence_stats(recent_n: int = 50):
+    """Brain karar dağılımı + confidence trend (rolling)."""
+    return pro_panels.compute_ai_confidence_stats(
+        brain_decisions_log=_brain_decisions_log, recent_n=recent_n,
+    )
+
+
+# ─── 10. Trade Replay ────────────────────────────────────────────
+
+@app.get("/api/equity/pro/trade-replay")
+def pro_trade_replay(ticker: Optional[str] = None,
+                     pipeline_run_id: Optional[str] = None,
+                     limit: int = 200):
+    """Tek trade'in event timeline'ı — pipeline_run veya ticker bazlı."""
+    return pro_panels.compute_trade_replay(
+        journal=_journal, ticker=ticker,
+        pipeline_run_id=pipeline_run_id, limit=limit,
+    )
+
+
+# ─── Pro panels index endpoint ───────────────────────────────────
+
+@app.get("/api/equity/pro/index")
+def pro_panels_index():
+    """V6.0-ε panel kataloğu — dashboard için."""
+    return {
+        "panels": [
+            {"id": 1, "name": "Sector Heatmap", "endpoint": "/api/equity/pro/sector-heatmap"},
+            {"id": 2, "name": "Earnings Calendar", "endpoint": "/api/equity/pro/earnings-calendar"},
+            {"id": 3, "name": "MTF Analysis", "endpoint": "/api/equity/pro/mtf/{symbol}"},
+            {"id": 4, "name": "Correlation Matrix", "endpoint": "/api/equity/pro/correlation-matrix"},
+            {"id": 5, "name": "Win Rate Trend", "endpoint": "/api/equity/pro/win-rate-trend"},
+            {"id": 6, "name": "Risk Dashboard", "endpoint": "/api/equity/pro/risk-dashboard"},
+            {"id": 7, "name": "Gap Scanner", "endpoint": "/api/equity/pro/gap-scanner"},
+            {"id": 8, "name": "News Timeline", "endpoint": "/api/equity/pro/news-timeline"},
+            {"id": 9, "name": "AI Confidence Stats", "endpoint": "/api/equity/pro/ai-confidence-stats"},
+            {"id": 10, "name": "Trade Replay", "endpoint": "/api/equity/pro/trade-replay"},
+        ],
+        "version": "6.0-ε",
+        "asset_class": "equity",
+    }
 
 
 # ─── Static dashboard ─────────────────────────────────────────────

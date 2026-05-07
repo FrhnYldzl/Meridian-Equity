@@ -922,6 +922,9 @@
     <a class="nav-item" data-route="journal" href="#/journal"><span class="nav-icon">📓</span> Journal</a>
     <a class="nav-item" data-route="regime" href="#/regime"><span class="nav-icon">🧭</span> Regime</a>
 
+    <div class="nav-section">Pro Panels · V6.0-ε</div>
+    <a class="nav-item" data-route="pro" href="#/pro"><span class="nav-icon">⭐</span> Pro Full (10)</a>
+
     <div class="nav-section">Portfolio</div>
     <a class="nav-item" data-route="positions" href="#/positions"><span class="nav-icon">💼</span> Positions</a>
     <a class="nav-item" data-route="orders" href="#/orders"><span class="nav-icon">📝</span> Orders</a>
@@ -1423,6 +1426,118 @@
   </section>
 
   <!-- ============================================================ -->
+  <!-- PRO PANELS (V6.0-ε)                                          -->
+  <!-- ============================================================ -->
+  <section class="view" id="view-pro" data-view="pro">
+    <div class="view-header">
+      <div>
+        <div class="view-title">Pro Full · 10 Bloomberg-Grade Panels</div>
+        <div class="view-subtitle">Sektör · Earnings · MTF · Correlation · Win-Rate · Risk · Gap · News · Confidence · Replay</div>
+      </div>
+      <div style="display: flex; gap: 8px; align-items: center;">
+        <input type="text" id="proSymbolInput" placeholder="MTF/Replay sembol (örn. NVDA)"
+               value="NVDA"
+               style="padding: 6px 10px; background: var(--bg-input); border: 1px solid var(--border); color: var(--text-primary); border-radius: 4px; font-family: var(--font-mono); font-size: 12px; width: 200px;">
+        <button class="btn" onclick="loadAllProPanels()">↻ Tümünü Yenile</button>
+      </div>
+    </div>
+
+    <!-- 1. Sector Heatmap -->
+    <div class="panel" style="margin-bottom: 12px;">
+      <div class="panel-head">
+        <div class="panel-title">1. Sector Heatmap</div>
+        <div style="font-size: 10px; color: var(--text-tertiary);" id="proSectorMeta">—</div>
+      </div>
+      <div id="proSectorBody" class="empty">Loading…</div>
+    </div>
+
+    <!-- 6. Risk Dashboard (öne aldım — kritik) -->
+    <div class="panel" style="margin-bottom: 12px;">
+      <div class="panel-head">
+        <div class="panel-title">2. Risk Dashboard</div>
+        <div style="font-size: 10px; color: var(--text-tertiary);" id="proRiskMeta">—</div>
+      </div>
+      <div id="proRiskBody" class="empty">Loading…</div>
+    </div>
+
+    <!-- 7. Gap Scanner -->
+    <div class="panel" style="margin-bottom: 12px;">
+      <div class="panel-head">
+        <div class="panel-title">3. Gap Scanner</div>
+        <div style="font-size: 10px; color: var(--text-tertiary);" id="proGapMeta">—</div>
+      </div>
+      <div id="proGapBody" class="empty">Loading…</div>
+    </div>
+
+    <!-- 9. AI Confidence -->
+    <div class="grid-2">
+      <div class="panel">
+        <div class="panel-head">
+          <div class="panel-title">4. AI Confidence Stats</div>
+          <div style="font-size: 10px; color: var(--text-tertiary);" id="proConfidenceMeta">—</div>
+        </div>
+        <div id="proConfidenceBody" class="empty">Loading…</div>
+      </div>
+
+      <!-- 5. Win Rate Trend -->
+      <div class="panel">
+        <div class="panel-head">
+          <div class="panel-title">5. Win Rate Trend (haftalık)</div>
+          <div style="font-size: 10px; color: var(--text-tertiary);" id="proWinRateMeta">—</div>
+        </div>
+        <div id="proWinRateBody" class="empty">Loading…</div>
+      </div>
+    </div>
+
+    <!-- 3. MTF + 4. Correlation -->
+    <div class="grid-2" style="margin-top: 12px;">
+      <div class="panel">
+        <div class="panel-head">
+          <div class="panel-title">6. Multi-Timeframe Analysis</div>
+          <div style="font-size: 10px; color: var(--text-tertiary);" id="proMtfMeta">—</div>
+        </div>
+        <div id="proMtfBody" class="empty">Sembol gir + Yenile</div>
+      </div>
+
+      <div class="panel">
+        <div class="panel-head">
+          <div class="panel-title">7. Correlation Matrix</div>
+          <div style="font-size: 10px; color: var(--text-tertiary);" id="proCorrMeta">—</div>
+        </div>
+        <div id="proCorrBody" class="empty">Loading…</div>
+      </div>
+    </div>
+
+    <!-- 8. News + 2. Earnings -->
+    <div class="grid-2" style="margin-top: 12px;">
+      <div class="panel">
+        <div class="panel-head">
+          <div class="panel-title">8. News Timeline (24h)</div>
+          <div style="font-size: 10px; color: var(--text-tertiary);" id="proNewsMeta">—</div>
+        </div>
+        <div id="proNewsBody" class="empty">Loading…</div>
+      </div>
+
+      <div class="panel">
+        <div class="panel-head">
+          <div class="panel-title">9. Earnings Calendar</div>
+          <div style="font-size: 10px; color: var(--text-tertiary);" id="proEarningsMeta">—</div>
+        </div>
+        <div id="proEarningsBody" class="empty">Loading…</div>
+      </div>
+    </div>
+
+    <!-- 10. Trade Replay -->
+    <div class="panel" style="margin-top: 12px;">
+      <div class="panel-head">
+        <div class="panel-title">10. Trade Replay</div>
+        <div style="font-size: 10px; color: var(--text-tertiary);" id="proReplayMeta">—</div>
+      </div>
+      <div id="proReplayBody" class="empty">Sembol gir + Yenile (journal'dan event timeline)</div>
+    </div>
+  </section>
+
+  <!-- ============================================================ -->
   <!-- POSITIONS                                                    -->
   <!-- ============================================================ -->
   <section class="view" id="view-positions" data-view="positions">
@@ -1557,8 +1672,8 @@
 
   <!-- FOOTER -->
   <div class="footer-meta">
-    <div>Trading Agent <span class="accent">V5.9-δ</span> · Equity Module · SPA Dashboard</div>
-    <div>Read-only · main system on V5.7 (untouched)</div>
+    <div>Meridian Equity <span class="accent">V6.0-ε</span> · Pro Full · 10 Bloomberg-grade panels</div>
+    <div>Strangler fig · V5.7 prod (devine-laughter) untouched · paper mode default</div>
   </div>
 </main>
 
@@ -1629,6 +1744,8 @@ async function loadViewData(route) {
     await loadJournal();
   } else if (route === 'regime') {
     await loadRegime();
+  } else if (route === 'pro') {
+    await loadAllProPanels();
   } else if (route === 'positions') {
     await loadPositions();
   } else if (route === 'orders') {
@@ -2718,11 +2835,364 @@ function openSymbolChart(sym) {
   }, 100);
 }
 
+// ════════════════════════════════════════════════════════════════
+// V6.0-ε: PRO PANELS LOADERS
+// ════════════════════════════════════════════════════════════════
+
+async function loadAllProPanels() {
+  const sym = (document.getElementById('proSymbolInput')?.value || 'NVDA').toUpperCase();
+  await Promise.all([
+    loadProSectorHeatmap(),
+    loadProRiskDashboard(),
+    loadProGapScanner(),
+    loadProAIConfidence(),
+    loadProWinRateTrend(),
+    loadProMTF(sym),
+    loadProCorrelation(),
+    loadProNewsTimeline(),
+    loadProEarnings(),
+    loadProTradeReplay(sym),
+  ]);
+}
+
+function _heatColor(v) {
+  // -5..+5% range için gradient — kırmızı→nötr→yeşil
+  const clamped = Math.max(-5, Math.min(5, Number(v) || 0));
+  if (clamped > 0) {
+    const a = clamped / 5;
+    return `rgba(16,185,129,${0.15 + a * 0.55})`;
+  } else if (clamped < 0) {
+    const a = -clamped / 5;
+    return `rgba(239,68,68,${0.15 + a * 0.55})`;
+  }
+  return 'rgba(148,163,184,0.10)';
+}
+
+// 1. Sector Heatmap
+async function loadProSectorHeatmap() {
+  try {
+    const r = await jget(API + '/pro/sector-heatmap');
+    const meta = document.getElementById('proSectorMeta');
+    const body = document.getElementById('proSectorBody');
+    if (r.error) { body.innerHTML = `<div class="empty">${r.error}</div>`; return; }
+    meta.textContent = `Leader: ${r.leader || '—'} · Laggard: ${r.laggard || '—'} · Rotation: ${r.rotation_score}`;
+    if (!r.sectors?.length) { body.innerHTML = '<div class="empty">No sector data</div>'; return; }
+    const cells = r.sectors.map(s => `
+      <div style="background:${_heatColor(s.avg_change_pct)};padding:10px;border-radius:6px;border:1px solid var(--border);">
+        <div style="font-weight:700;font-size:12px;color:var(--text-primary);">${s.name}</div>
+        <div style="font-size:18px;font-family:var(--font-mono);color:${s.avg_change_pct >= 0 ? 'var(--equity-bright)' : 'var(--bear)'};margin:4px 0;">
+          ${s.avg_change_pct >= 0 ? '+' : ''}${s.avg_change_pct}%
+        </div>
+        <div style="font-size:10px;color:var(--text-secondary);">
+          ${s.ticker_count} stock · W:${s.winners} L:${s.losers}<br>
+          Best: <strong>${s.best.ticker}</strong> ${s.best.change_pct >= 0 ? '+' : ''}${s.best.change_pct}%<br>
+          Mom: ${s.avg_momentum}
+        </div>
+      </div>`).join('');
+    body.innerHTML = `<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:8px;">${cells}</div>`;
+  } catch(e) {
+    document.getElementById('proSectorBody').innerHTML = `<div class="empty">Error: ${e.message}</div>`;
+  }
+}
+
+// 2. Risk Dashboard
+async function loadProRiskDashboard() {
+  try {
+    const r = await jget(API + '/pro/risk-dashboard');
+    const meta = document.getElementById('proRiskMeta');
+    const body = document.getElementById('proRiskBody');
+    if (r.error) { body.innerHTML = `<div class="empty">${r.error}</div>`; return; }
+    const p = r.portfolio || {};
+    meta.textContent = `Equity: ${fmt.usd(p.equity)} · Cash %${p.cash_pct?.toFixed(1)} · Pos: ${p.position_count}`;
+    const alerts = (r.alerts || []).map(a =>
+      `<div style="background:rgba(239,68,68,0.10);border-left:3px solid var(--bear);padding:6px 10px;margin:4px 0;font-size:11px;color:var(--text-primary);">⚠ ${a}</div>`
+    ).join('') || '<div style="color:var(--text-tertiary);font-size:11px;">No risk alerts</div>';
+    const posRows = (r.positions || []).map(p => `
+      <tr>
+        <td><strong>${p.ticker}</strong></td>
+        <td style="color:var(--text-tertiary);">${p.sector}</td>
+        <td>${fmt.usd(p.market_value)}</td>
+        <td style="color:${p.pct_of_equity > 25 ? 'var(--bear)' : 'var(--text-secondary)'};">${p.pct_of_equity}%</td>
+        <td style="color:${p.unrealized_pl >= 0 ? 'var(--equity-bright)' : 'var(--bear)'};">${p.unrealized_pl >= 0 ? '+' : ''}${fmt.usd(p.unrealized_pl)}</td>
+        <td>${p.atr_pct ? p.atr_pct.toFixed(2) + '%' : '—'}</td>
+      </tr>`).join('');
+    const sectorRows = (r.concentration?.sectors || []).map(s => `
+      <tr><td>${s.sector}</td><td>${fmt.usd(s.value)}</td><td style="color:${s.pct_of_equity > 35 ? 'var(--bear)' : 'var(--text-secondary)'};">${s.pct_of_equity}%</td></tr>`).join('');
+    body.innerHTML = `
+      <div class="grid-2" style="gap:16px;">
+        <div>
+          <div style="font-size:11px;color:var(--text-tertiary);margin-bottom:6px;">ALERTS (${r.alert_count})</div>
+          ${alerts}
+          <div style="margin-top:12px;font-size:11px;color:var(--text-tertiary);margin-bottom:6px;">CONCENTRATION</div>
+          <table class="table" style="width:100%;font-size:11px;"><thead><tr><th>Sector</th><th>Value</th><th>%Eq</th></tr></thead><tbody>${sectorRows || '<tr><td colspan=3 class=empty>—</td></tr>'}</tbody></table>
+        </div>
+        <div>
+          <div style="font-size:11px;color:var(--text-tertiary);margin-bottom:6px;">POSITIONS (sorted by % equity)</div>
+          <table class="table" style="width:100%;font-size:11px;">
+            <thead><tr><th>Ticker</th><th>Sector</th><th>MV</th><th>%Eq</th><th>P/L</th><th>ATR%</th></tr></thead>
+            <tbody>${posRows || '<tr><td colspan=6 class=empty>No positions</td></tr>'}</tbody>
+          </table>
+        </div>
+      </div>`;
+  } catch(e) {
+    document.getElementById('proRiskBody').innerHTML = `<div class="empty">Error: ${e.message}</div>`;
+  }
+}
+
+// 3. Gap Scanner
+async function loadProGapScanner() {
+  try {
+    const r = await jget(API + '/pro/gap-scanner?min_gap_pct=1.0');
+    const meta = document.getElementById('proGapMeta');
+    const body = document.getElementById('proGapBody');
+    if (r.error) { body.innerHTML = `<div class="empty">${r.error}</div>`; return; }
+    meta.textContent = `Total: ${r.total_with_gap} · Confirmed: ${r.confirmed_count} (vol≥1.5x)`;
+    if (!r.gaps?.length) { body.innerHTML = '<div class="empty">Şu an gap yok</div>'; return; }
+    const rows = r.gaps.map(g => `
+      <tr>
+        <td><strong>${g.ticker}</strong></td>
+        <td style="color:var(--text-tertiary);">${g.sector}</td>
+        <td style="color:${g.direction === 'up' ? 'var(--equity-bright)' : 'var(--bear)'};font-family:var(--font-mono);">
+          ${g.direction === 'up' ? '▲' : '▼'} ${g.gap_pct >= 0 ? '+' : ''}${g.gap_pct}%
+        </td>
+        <td>${g.volume_ratio}×</td>
+        <td>${g.confirmed ? '<span style="color:var(--equity-bright);">✓ confirmed</span>' : '<span style="color:var(--text-tertiary);">unconfirmed</span>'}</td>
+        <td>${g.rsi14 || '—'}</td>
+        <td>${g.momentum_score || '—'}</td>
+        <td>${fmt.usd(g.price)}</td>
+      </tr>`).join('');
+    body.innerHTML = `<table class="table" style="width:100%;font-size:11px;">
+      <thead><tr><th>Ticker</th><th>Sector</th><th>Gap</th><th>Vol</th><th>Status</th><th>RSI</th><th>Mom</th><th>Price</th></tr></thead>
+      <tbody>${rows}</tbody></table>`;
+  } catch(e) {
+    document.getElementById('proGapBody').innerHTML = `<div class="empty">Error: ${e.message}</div>`;
+  }
+}
+
+// 4. AI Confidence
+async function loadProAIConfidence() {
+  try {
+    const r = await jget(API + '/pro/ai-confidence-stats');
+    const meta = document.getElementById('proConfidenceMeta');
+    const body = document.getElementById('proConfidenceBody');
+    meta.textContent = `Mean: ${r.mean} · High-conv (≥8): ${r.high_conviction_pct}% · Runs: ${r.recent_runs}`;
+    if (!r.total_decisions) {
+      body.innerHTML = '<div class="empty">Brain henüz çalıştırılmadı. /api/equity/brain çağır.</div>';
+      return;
+    }
+    const dist = r.distribution || {};
+    const max = Math.max(1, ...Object.values(dist));
+    const bars = Object.keys(dist).sort((a,b) => +a - +b).map(k => {
+      const v = dist[k];
+      const h = (v / max * 100).toFixed(0);
+      return `<div style="flex:1;text-align:center;">
+        <div style="height:80px;display:flex;align-items:flex-end;justify-content:center;">
+          <div style="width:80%;height:${h}%;background:${k >= 8 ? 'var(--equity-bright)' : k >= 5 ? 'var(--equity)' : 'var(--text-tertiary)'};border-radius:3px 3px 0 0;"></div>
+        </div>
+        <div style="font-size:10px;color:var(--text-secondary);margin-top:2px;">${k}</div>
+        <div style="font-size:10px;color:var(--text-tertiary);">${v}</div>
+      </div>`;
+    }).join('');
+    const actions = Object.entries(r.by_action || {}).map(([a, info]) =>
+      `<tr><td><strong>${a}</strong></td><td>${info.count}</td><td>${info.mean_confidence}</td></tr>`
+    ).join('');
+    body.innerHTML = `
+      <div style="display:flex;gap:2px;margin-bottom:8px;">${bars}</div>
+      <div style="font-size:10px;color:var(--text-tertiary);text-align:center;margin-bottom:8px;">Confidence distribution (1-10)</div>
+      <table class="table" style="width:100%;font-size:11px;"><thead><tr><th>Action</th><th>Count</th><th>Mean Conf</th></tr></thead><tbody>${actions}</tbody></table>`;
+  } catch(e) {
+    document.getElementById('proConfidenceBody').innerHTML = `<div class="empty">Error: ${e.message}</div>`;
+  }
+}
+
+// 5. Win Rate Trend
+async function loadProWinRateTrend() {
+  try {
+    const r = await jget(API + '/pro/win-rate-trend?days=90&bucket_days=7');
+    const meta = document.getElementById('proWinRateMeta');
+    const body = document.getElementById('proWinRateBody');
+    meta.textContent = `Overall: ${r.overall_win_rate}% · Trades: ${r.total_trades} · PnL: ${fmt.usd(r.total_pnl)} · Trend: ${r.trend}`;
+    if (!r.buckets?.length) {
+      body.innerHTML = '<div class="empty">Henüz trade kapanışı yok (V5.7 trade_journal migration sonrası dolacak).</div>';
+      return;
+    }
+    const max = Math.max(1, ...r.buckets.map(b => b.trades));
+    const bars = r.buckets.map(b => {
+      const wrColor = b.win_rate_pct >= 50 ? 'var(--equity-bright)' : 'var(--bear)';
+      return `<div style="flex:1;text-align:center;min-width:40px;">
+        <div style="height:60px;display:flex;align-items:flex-end;justify-content:center;">
+          <div style="width:80%;height:${(b.trades/max*100).toFixed(0)}%;background:${wrColor};border-radius:3px 3px 0 0;"></div>
+        </div>
+        <div style="font-size:9px;color:var(--text-secondary);">${b.win_rate_pct}%</div>
+        <div style="font-size:9px;color:var(--text-tertiary);">${b.trades}</div>
+        <div style="font-size:8px;color:var(--text-tertiary);">${b.start.slice(5)}</div>
+      </div>`;
+    }).join('');
+    body.innerHTML = `<div style="display:flex;gap:2px;align-items:flex-end;">${bars}</div>`;
+  } catch(e) {
+    document.getElementById('proWinRateBody').innerHTML = `<div class="empty">Error: ${e.message}</div>`;
+  }
+}
+
+// 6. MTF
+async function loadProMTF(symbol) {
+  try {
+    const sym = (symbol || 'NVDA').toUpperCase();
+    const r = await jget(API + '/pro/mtf/' + encodeURIComponent(sym));
+    const meta = document.getElementById('proMtfMeta');
+    const body = document.getElementById('proMtfBody');
+    meta.textContent = `${sym} · ${r.alignment} · Score: ${r.score}/10 (${r.bull_timeframes}↑ / ${r.bear_timeframes}↓)`;
+    const tfs = r.timeframes || {};
+    const rows = Object.keys(tfs).map(tf => {
+      const t = tfs[tf];
+      if (t.error) return `<tr><td>${tf}</td><td colspan=4 style="color:var(--text-tertiary);">${t.error}</td></tr>`;
+      const trendColor = t.trend?.includes('up') ? 'var(--equity-bright)' :
+                        t.trend?.includes('down') ? 'var(--bear)' : 'var(--text-tertiary)';
+      return `<tr>
+        <td><strong>${tf}</strong></td>
+        <td style="color:${trendColor};">${t.trend}</td>
+        <td>${t.rsi || '—'}</td>
+        <td>${fmt.usd(t.close)}</td>
+        <td style="color:${t.change_pct >= 0 ? 'var(--equity-bright)' : 'var(--bear)'};">${t.change_pct >= 0 ? '+' : ''}${t.change_pct}%</td>
+      </tr>`;
+    }).join('');
+    body.innerHTML = `
+      <div style="font-size:11px;color:var(--text-secondary);background:rgba(16,185,129,0.05);padding:8px 10px;border-radius:4px;margin-bottom:8px;">${r.interpretation}</div>
+      <table class="table" style="width:100%;font-size:11px;">
+        <thead><tr><th>Timeframe</th><th>Trend</th><th>RSI</th><th>Close</th><th>Change</th></tr></thead>
+        <tbody>${rows}</tbody></table>`;
+  } catch(e) {
+    document.getElementById('proMtfBody').innerHTML = `<div class="empty">Error: ${e.message}</div>`;
+  }
+}
+
+// 7. Correlation Matrix
+async function loadProCorrelation() {
+  try {
+    const r = await jget(API + '/pro/correlation-matrix?days=30&timeframe=1Day');
+    const meta = document.getElementById('proCorrMeta');
+    const body = document.getElementById('proCorrBody');
+    if (r.error) { body.innerHTML = `<div class="empty">${r.error}</div>`; return; }
+    meta.textContent = `Avg corr: ${r.avg_correlation} · Diversification: ${r.diversification_score}/100`;
+    const syms = r.symbols || [];
+    const matrix = r.matrix || [];
+    if (!matrix.length) { body.innerHTML = '<div class="empty">No correlation data</div>'; return; }
+    const headerCols = syms.map(s => `<th style="padding:4px;font-size:10px;">${s}</th>`).join('');
+    const rows = matrix.map((row, i) => {
+      const cells = row.map((v, j) => {
+        const intensity = Math.abs(v);
+        const color = v > 0
+          ? `rgba(16,185,129,${intensity * 0.6})`
+          : `rgba(239,68,68,${intensity * 0.6})`;
+        return `<td style="padding:4px;text-align:center;background:${color};font-family:var(--font-mono);font-size:10px;color:var(--text-primary);">${i === j ? '1.00' : v.toFixed(2)}</td>`;
+      }).join('');
+      return `<tr><th style="padding:4px;font-size:10px;">${syms[i]}</th>${cells}</tr>`;
+    }).join('');
+    body.innerHTML = `
+      <div style="font-size:10px;color:var(--text-tertiary);margin-bottom:6px;">
+        Highest: <strong>${r.highest_corr?.pair?.join('-') || '—'}</strong> ${r.highest_corr?.value || '—'} ·
+        Lowest: <strong>${r.lowest_corr?.pair?.join('-') || '—'}</strong> ${r.lowest_corr?.value || '—'}
+      </div>
+      <div style="overflow-x:auto;"><table class="table" style="border-collapse:collapse;">
+        <thead><tr><th></th>${headerCols}</tr></thead>
+        <tbody>${rows}</tbody></table></div>`;
+  } catch(e) {
+    document.getElementById('proCorrBody').innerHTML = `<div class="empty">Error: ${e.message}</div>`;
+  }
+}
+
+// 8. News Timeline
+async function loadProNewsTimeline() {
+  try {
+    const r = await jget(API + '/pro/news-timeline?hours=24');
+    const meta = document.getElementById('proNewsMeta');
+    const body = document.getElementById('proNewsBody');
+    if (r.error) { body.innerHTML = `<div class="empty">${r.error}</div>`; return; }
+    const b = r.buckets || {};
+    meta.textContent = `Total: ${r.total} · ↑${b.positive} ↓${b.negative} ●${b.neutral}`;
+    if (!r.timeline?.length) { body.innerHTML = '<div class="empty">No recent news</div>'; return; }
+    const items = r.timeline.slice(0, 25).map(it => {
+      const color = it.sentiment === 'positive' ? 'var(--equity-bright)' :
+                   it.sentiment === 'negative' ? 'var(--bear)' : 'var(--text-tertiary)';
+      const ts = it.ts ? new Date(it.ts).toLocaleTimeString() : '—';
+      return `<div style="border-left:2px solid ${color};padding:6px 10px;margin-bottom:4px;background:rgba(255,255,255,0.02);">
+        <div style="font-size:10px;color:var(--text-tertiary);">${ts} · <strong style="color:${color};">${it.ticker}</strong> · ${it.sentiment}</div>
+        <div style="font-size:11px;color:var(--text-primary);margin-top:2px;">${it.title}</div>
+      </div>`;
+    }).join('');
+    body.innerHTML = `<div style="max-height:400px;overflow-y:auto;">${items}</div>`;
+  } catch(e) {
+    document.getElementById('proNewsBody').innerHTML = `<div class="empty">Error: ${e.message}</div>`;
+  }
+}
+
+// 9. Earnings Calendar
+async function loadProEarnings() {
+  try {
+    const r = await jget(API + '/pro/earnings-calendar?days_ahead=14');
+    const meta = document.getElementById('proEarningsMeta');
+    const body = document.getElementById('proEarningsBody');
+    if (r.error) { body.innerHTML = `<div class="empty">${r.error}</div>`; return; }
+    meta.textContent = `${r.count || 0} events · ${r.data_source}`;
+    if (!r.events?.length) {
+      body.innerHTML = `<div class="empty">No earnings events from news heuristic.<br><small>${r.limitations || ''}</small></div>`;
+      return;
+    }
+    const items = r.events.slice(0, 20).map(e => `
+      <div style="border-left:2px solid var(--equity);padding:6px 10px;margin-bottom:4px;background:rgba(16,185,129,0.04);">
+        <div style="font-size:10px;color:var(--text-tertiary);"><strong style="color:var(--equity-bright);">${e.ticker}</strong> · ${e.date_hint || '—'}</div>
+        <div style="font-size:11px;color:var(--text-primary);margin-top:2px;">${e.headline}</div>
+      </div>`).join('');
+    body.innerHTML = `<div style="max-height:400px;overflow-y:auto;">${items}</div>
+      <div style="font-size:9px;color:var(--text-tertiary);margin-top:6px;font-style:italic;">${r.limitations || ''}</div>`;
+  } catch(e) {
+    document.getElementById('proEarningsBody').innerHTML = `<div class="empty">Error: ${e.message}</div>`;
+  }
+}
+
+// 10. Trade Replay
+async function loadProTradeReplay(symbol) {
+  try {
+    const sym = (symbol || 'NVDA').toUpperCase();
+    const r = await jget(API + '/pro/trade-replay?ticker=' + encodeURIComponent(sym) + '&limit=100');
+    const meta = document.getElementById('proReplayMeta');
+    const body = document.getElementById('proReplayBody');
+    if (r.error) { body.innerHTML = `<div class="empty">${r.error}</div>`; return; }
+    const s = r.summary || {};
+    meta.textContent = `${sym} · ${r.event_count} events · ${s.lifecycle_complete ? 'complete lifecycle' : 'partial'}`;
+    if (!r.events?.length) {
+      body.innerHTML = `<div class="empty">${sym} için journal'da event yok.</div>`;
+      return;
+    }
+    const items = r.events.slice(0, 50).map(e => {
+      const colorMap = {
+        trade_open: 'var(--equity-bright)',
+        trade_close: 'var(--equity)',
+        gate_block: 'var(--bear)',
+        error: 'var(--bear)',
+        audit: 'var(--neutral)',
+        brain_run: 'var(--text-secondary)',
+      };
+      const color = colorMap[e.event_type] || 'var(--text-tertiary)';
+      const ts = e.timestamp ? new Date(e.timestamp).toLocaleString() : '—';
+      const payload = typeof e.payload === 'string' ? e.payload : JSON.stringify(e.payload || {}, null, 0);
+      return `<div style="border-left:3px solid ${color};padding:6px 10px;margin-bottom:4px;background:rgba(255,255,255,0.02);">
+        <div style="font-size:10px;color:var(--text-tertiary);">${ts} · <strong style="color:${color};">${e.event_type}</strong> · ${e.symbol || ''}</div>
+        <div style="font-size:10px;color:var(--text-primary);margin-top:2px;font-family:var(--font-mono);word-break:break-word;">${payload.slice(0, 200)}${payload.length > 200 ? '…' : ''}</div>
+      </div>`;
+    }).join('');
+    body.innerHTML = `<div style="max-height:500px;overflow-y:auto;">${items}</div>`;
+  } catch(e) {
+    document.getElementById('proReplayBody').innerHTML = `<div class="empty">Error: ${e.message}</div>`;
+  }
+}
+
 // ─── INIT ──────────────────────────────────────────────────────
 loadGroupMap();
 showView(getRoute());
 setInterval(() => loadStatus(), 30000);
 setInterval(() => { if (getRoute() === 'overview') loadCurrentView(); }, 30000);
+setInterval(() => { if (getRoute() === 'pro') loadAllProPanels(); }, 60000);
 </script>
 </body>
 </html>
