@@ -96,7 +96,7 @@ from equity import (
     pro_panels,
 )
 
-app = FastAPI(title="Meridian Capital — Equity V6.0", version="6.0-ε.7")
+app = FastAPI(title="Meridian Capital — Equity V6.0", version="6.0-ε.8")
 
 
 # ─────────────────────────────────────────────────────────────────
@@ -521,10 +521,15 @@ def health():
         "/app/data" in journal_path
         or os.getenv("EQUITY_JOURNAL_DB_PATH") is not None
     )
+    # V6.0-ε.8: broker enabled check (lazy auth)
+    broker_enabled = getattr(_broker, "enabled", False)
+    broker_source = getattr(_broker, "api_key_source", "unknown")
     return {
-        "status": "ok",
+        "status": "ok" if broker_enabled else "degraded",
         "module": "equity",
-        "version": "6.0-ε.7",
+        "version": "6.0-ε.8",
+        "broker_enabled": broker_enabled,
+        "broker_api_key_source": broker_source,
         "asset_class": "equity",
         "dry_run": _broker_dry_run,
         "paper": True,  # V6.0-η'da live mode env var ile değişecek
@@ -1396,7 +1401,7 @@ def pro_panels_index():
             {"id": 9, "name": "AI Confidence Stats", "endpoint": "/api/equity/pro/ai-confidence-stats"},
             {"id": 10, "name": "Trade Replay", "endpoint": "/api/equity/pro/trade-replay"},
         ],
-        "version": "6.0-ε.7",
+        "version": "6.0-ε.8",
         "asset_class": "equity",
     }
 

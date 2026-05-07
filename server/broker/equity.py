@@ -28,21 +28,74 @@ from config import ORDER_COOLDOWN_SEC, BRACKET_ENABLED
 load_dotenv()
 
 
-class EquityBroker:
-    def __init__(self):
-        self.client = TradingClient(
-            api_key=os.getenv("ALPACA_API_KEY"),
-            secret_key=os.getenv("ALPACA_SECRET_KEY"),
-            paper=True,
-        )
-        original_request = self.client._session.request
-        def request_with_timeout(method, url, **kwargs):
-            kwargs.setdefault("timeout", 10)
-            return original_request(method, url, **kwargs)
-        self.client._session.request = request_with_timeout
+def _resolve_alpaca_keys() -> tuple[str | None, str | None, str]:
+    """V6.0-ε.8: Multi-name credential resolution (Railway/Alpaca env naming variants).
 
+    Try in order:
+      1. ALPACA_API_KEY / ALPACA_SECRET_KEY (this codebase convention)
+      2. APCA_API_KEY_ID / APCA_API_SECRET_KEY (Alpaca SDK default)
+      3. Auto-detect: any env var starting with 'PK' (Alpaca paper key prefix)
+    """
+    api = os.getenv("ALPACA_API_KEY") or os.getenv("APCA_API_KEY_ID") or ""
+    sec = os.getenv("ALPACA_SECRET_KEY") or os.getenv("APCA_API_SECRET_KEY") or ""
+    source = "ALPACA_*"
+    if not api:
+        # Last-resort scan
+        for k, v in os.environ.items():
+            if isinstance(v, str) and v.startswith("PK") and len(v) >= 16 and len(v) <= 40:
+                api = v
+                source = f"auto-detected from {k}"
+                break
+    if not api or not sec:
+        return None, None, "MISSING (set ALPACA_API_KEY + ALPACA_SECRET_KEY)"
+    return api, sec, source
+
+
+class EquityBroker:
+    """V6.0-ε.8: Lazy auth — boot etmek için creds zorunlu DEĞİL.
+
+    Endpoint hit edildiğinde creds yoksa graceful 503 döner; uvicorn crash etmez.
+    """
+
+    def __init__(self):
+        self._client = None
+        self._api_key, self._secret_key, self.api_key_source = _resolve_alpaca_keys()
+        self.enabled = bool(self._api_key and self._secret_key)
         self._recent_orders: dict[str, float] = {}
         self._order_cooldown = ORDER_COOLDOWN_SEC
+        if self.enabled:
+            self._init_client()
+
+    def _init_client(self):
+        """Alpaca client'ı oluştur. Creds yoksa hata yutar, enabled=False kalır."""
+        try:
+            self._client = TradingClient(
+                api_key=self._api_key,
+                secret_key=self._secret_key,
+                paper=True,
+            )
+            original_request = self._client._session.request
+            def request_with_timeout(method, url, **kwargs):
+                kwargs.setdefault("timeout", 10)
+                return original_request(method, url, **kwargs)
+            self._client._session.request = request_with_timeout
+            self.enabled = True
+        except Exception as e:
+            self._client = None
+            self.enabled = False
+            self.api_key_source = f"INIT_FAILED: {e}"
+
+    @property
+    def client(self):
+        """Lazy property — endpoint hit'inde init dener (env var sonra eklendiyse)."""
+        if self._client is None and self._api_key and self._secret_key:
+            self._init_client()
+        if self._client is None:
+            raise RuntimeError(
+                f"Alpaca broker not configured. Reason: {self.api_key_source}. "
+                "Set ALPACA_API_KEY and ALPACA_SECRET_KEY env vars."
+            )
+        return self._client
 
     # ── Ana islem metodu ──────────────────────────────────────────
 
