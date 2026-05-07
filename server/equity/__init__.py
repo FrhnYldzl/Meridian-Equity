@@ -21,6 +21,7 @@ from equity.scheduler_adapter import EquitySchedulerAdapter
 from equity.journal import EquityJournal
 from equity.audit_impl import EquityAuditor
 from equity.auto_executor import EquityAutoExecutor, PHASE_PROFILES
+from equity.brain_impl import EquityBrain, EQUITY_SYSTEM_PROMPT, DEFAULT_MODEL as EQUITY_BRAIN_DEFAULT_MODEL
 
 __all__ = [
     # V5.8 adapters
@@ -34,4 +35,7 @@ __all__ = [
     "EquityAuditor",
     "EquityAutoExecutor",
     "PHASE_PROFILES",
+    "EquityBrain",
+    "EQUITY_SYSTEM_PROMPT",
+    "EQUITY_BRAIN_DEFAULT_MODEL",
 ]

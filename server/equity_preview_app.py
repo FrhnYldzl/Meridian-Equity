@@ -19,7 +19,8 @@ Endpoint katalog (Meridian Equity V6.0):
     GET  /api/equity/orders             → Bekleyen emirler
     GET  /api/equity/scheduler          → V5.6 adaptive mode
     GET  /api/equity/risk-config        → Kalibre risk parametreleri
-    GET  /api/equity/brain              → Claude AI multi-step reasoning
+    GET  /api/equity/brain              → Claude AI multi-step reasoning (V6.0-δ caching)
+    GET  /api/equity/brain-usage        → Prompt cache hit/miss + cost telemetry
     GET  /api/equity/audit              → Son Gemini audit
     GET  /api/equity/news               → Sentiment + headlines
     GET  /api/equity/anomalies          → Anomaly detection
@@ -71,10 +72,11 @@ from equity import (
     EquityJournal,
     EquityAuditor,
     EquityAutoExecutor,
+    EquityBrain,
     PHASE_PROFILES,
 )
 
-app = FastAPI(title="Meridian Capital — Equity V6.0", version="6.0-β")
+app = FastAPI(title="Meridian Capital — Equity V6.0", version="6.0-δ")
 
 
 # ─────────────────────────────────────────────────────────────────
@@ -121,26 +123,35 @@ class _SchedulerWrapper:
         try: return bool(is_market_open() or is_premarket())
         except: return False
 
-class _BrainWrapper:
-    """V5.7 claude_brain.run_brain'i V6.0 BaseBrain interface'iyle uyumlu sarar."""
-    @property
-    def asset_class(self): return "equity"
-    def run_brain(self, market_data, portfolio, recent_trades=None,
-                  regime=None, sentiment=None, learning_context=None):
-        return legacy_run_brain(
-            market_data=market_data,
-            portfolio=portfolio,
-            recent_trades=recent_trades or [],
-        )
-    def review_past_trades(self, recent_trades, portfolio):
-        from claude_brain import review_past_trades
-        return review_past_trades(recent_trades, portfolio)
-
+# V6.0-δ: _BrainWrapper kaldırıldı — EquityBrain (prompt caching + Sonnet 4.5)
+# legacy_run_brain hâlâ import'lu (fallback için) ama kullanılmıyor.
+# EquityBrain BaseBrain ABC implementasyonu, V5.7 dict formatı ile birebir uyumlu.
 
 _regime = _RegimeWrapper()
 _risk = _RiskWrapper()
 _scheduler_helper = _SchedulerWrapper()
-_brain = _BrainWrapper()
+
+# V6.0-δ Cost-optimized brain — EQUITY_BRAIN_MODEL env var ile model değiştirilebilir.
+# API key resolution: EQUITY_ANTHROPIC_API_KEY → ANTHROPIC_API_KEY → sk-ant- scan.
+_brain = EquityBrain()
+print(f"[EquityBrain] model={_brain.model} | enabled={_brain.enabled} | key_source={_brain.api_key_source}")
+
+# Prompt cache + cost telemetry (in-memory rolling)
+_brain_usage_log: list = []
+_BRAIN_USAGE_MAX = 100
+
+def _record_brain_usage(usage: dict, cached: bool = False):
+    """Cost telemetry — son N çağrı sakla, rolling."""
+    if not usage:
+        return
+    entry = {
+        "ts": datetime.now(timezone.utc).isoformat(),
+        "cached_response": cached,
+        **usage,
+    }
+    _brain_usage_log.append(entry)
+    if len(_brain_usage_log) > _BRAIN_USAGE_MAX:
+        del _brain_usage_log[: len(_brain_usage_log) - _BRAIN_USAGE_MAX]
 
 # Cache layer — 30sn TTL
 _cache: dict = {}
@@ -281,14 +292,17 @@ def health():
     return {
         "status": "ok",
         "module": "equity",
-        "version": "6.0-β",
+        "version": "6.0-δ",
         "asset_class": "equity",
         "dry_run": _broker_dry_run,
         "paper": True,  # V6.0-η'da live mode env var ile değişecek
         "live_mode": _auto_executor.live_mode,
         "live_phase": _auto_executor.live_phase,
         "phase_name": PHASE_PROFILES.get(_auto_executor.live_phase, {}).get("name"),
-        "brain_enabled": True,  # V5.7 brain her zaman, ANTHROPIC_API_KEY kontrolü içinde
+        "brain_enabled": _brain.enabled,
+        "brain_model": _brain.model,
+        "brain_api_key_source": _brain.api_key_source,
+        "brain_caching": "ephemeral (5min TTL)",  # V6.0-δ
         "auditor_enabled": _auditor.enabled,
         "auditor_api_key_source": _auditor.api_key_source,
         "auditor_model": _auditor.model,
@@ -554,11 +568,21 @@ def symbol_summary(symbol: str):
 
 @app.get("/api/equity/brain")
 def brain_decisions(fresh: bool = False):
-    """Claude AI multi-step reasoning. 60sn cache."""
+    """Claude AI multi-step reasoning. 60sn cache.
+
+    V6.0-δ: Cache hit halinde no API call (zero cost).
+    Cache miss → EquityBrain.run_brain (prompt caching enabled).
+    """
     cache_key = "brain:equity"
     if not fresh:
         hit = _cache_get(cache_key, ttl=60)
         if hit is not None:
+            # Cache hit — telemetry'ye yansıt (token=0)
+            _record_brain_usage({"input_tokens": 0, "output_tokens": 0,
+                                 "cache_creation_input_tokens": 0,
+                                 "cache_read_input_tokens": 0,
+                                 "model": _brain.model, "served_from": "endpoint_cache"},
+                                cached=True)
             return hit
 
     md = _fetch_md_cached(90)
@@ -591,8 +615,100 @@ def brain_decisions(fresh: bool = False):
         market_data=md, portfolio=portfolio,
         recent_trades=[], regime=regime,
     )
+
+    # V6.0-δ: usage telemetry (Anthropic prompt caching metrikleri)
+    if isinstance(result, dict) and "_usage" in result:
+        usage = dict(result["_usage"])
+        usage["model"] = _brain.model
+        _record_brain_usage(usage, cached=False)
+
     _cache_set(cache_key, result)
     return result
+
+
+@app.get("/api/equity/brain-usage")
+def brain_usage():
+    """V6.0-δ: Prompt cache hit/miss + token cost telemetry.
+
+    Cache hit %s, ortalama tokens/call, ve maliyet projeksiyonu.
+    """
+    if not _brain_usage_log:
+        return {
+            "model": _brain.model,
+            "calls": 0,
+            "cache_hit_rate": 0,
+            "totals": {},
+            "recent": [],
+            "note": "Henüz brain çağrısı yapılmadı.",
+        }
+
+    total = len(_brain_usage_log)
+    cached = sum(1 for x in _brain_usage_log if x.get("cached_response"))
+    fresh_calls = [x for x in _brain_usage_log if not x.get("cached_response")]
+
+    sum_input = sum(x.get("input_tokens", 0) for x in fresh_calls)
+    sum_output = sum(x.get("output_tokens", 0) for x in fresh_calls)
+    sum_cache_create = sum(
+        x.get("cache_creation_input_tokens", 0) for x in fresh_calls
+    )
+    sum_cache_read = sum(
+        x.get("cache_read_input_tokens", 0) for x in fresh_calls
+    )
+
+    cache_token_total = sum_cache_create + sum_cache_read
+    prompt_cache_hit_rate = (
+        sum_cache_read / cache_token_total * 100 if cache_token_total else 0
+    )
+
+    # Sonnet 4.5 fiyatlandırması (USD/MTok)
+    PRICE = {
+        "input": 3.0,
+        "output": 15.0,
+        "cache_write": 3.75,  # 1.25x base input
+        "cache_read": 0.30,    # 0.1x base input
+    }
+    cost_input = sum_input * PRICE["input"] / 1_000_000
+    cost_output = sum_output * PRICE["output"] / 1_000_000
+    cost_cache_write = sum_cache_create * PRICE["cache_write"] / 1_000_000
+    cost_cache_read = sum_cache_read * PRICE["cache_read"] / 1_000_000
+    cost_total = cost_input + cost_output + cost_cache_write + cost_cache_read
+
+    # Eğer cache hiç kullanılmasaydı (proxy: cache_read = fresh input)
+    cost_no_cache_input = (sum_input + sum_cache_read) * PRICE["input"] / 1_000_000
+    cost_no_cache = cost_no_cache_input + cost_output
+    saved = max(cost_no_cache - cost_total, 0)
+    saved_pct = (saved / cost_no_cache * 100) if cost_no_cache else 0
+
+    return {
+        "model": _brain.model,
+        "calls": total,
+        "endpoint_cache_hits": cached,
+        "endpoint_cache_hit_rate_pct": round(cached / total * 100, 1),
+        "fresh_api_calls": len(fresh_calls),
+        "totals": {
+            "input_tokens": sum_input,
+            "output_tokens": sum_output,
+            "cache_creation_input_tokens": sum_cache_create,
+            "cache_read_input_tokens": sum_cache_read,
+        },
+        "prompt_cache_hit_rate_pct": round(prompt_cache_hit_rate, 1),
+        "cost_usd": {
+            "fresh_input": round(cost_input, 4),
+            "output": round(cost_output, 4),
+            "cache_write": round(cost_cache_write, 4),
+            "cache_read": round(cost_cache_read, 4),
+            "total": round(cost_total, 4),
+            "if_no_cache": round(cost_no_cache, 4),
+            "saved": round(saved, 4),
+            "saved_pct": round(saved_pct, 1),
+        },
+        "recent": _brain_usage_log[-20:],
+        "note": (
+            f"Prompt caching ({_brain.model}) — endpoint cache hit %{round(cached/total*100,1)}, "
+            f"prompt cache read %{round(prompt_cache_hit_rate,1)}, "
+            f"toplam tasarruf ~%{round(saved_pct,1)}."
+        ),
+    }
 
 
 @app.get("/api/equity/audit")
