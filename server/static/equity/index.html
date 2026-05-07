@@ -1061,7 +1061,7 @@
     <div class="view-header">
       <div>
         <div class="view-title">Markets</div>
-        <div class="view-subtitle">Tüm tradable USD pair'ler · Stablecoin'ler hariç · Sıralanabilir</div>
+        <div class="view-subtitle">Core 15 + Extended NDX universe · Stocks + ETFs · Sektör filtresi · Sıralanabilir</div>
       </div>
       <div style="font-size: 11px; color: var(--text-tertiary);" id="marketsCount">— symbols</div>
     </div>
@@ -1596,8 +1596,9 @@
         <div class="panel-head"><div class="panel-title">Scheduler</div></div>
         <div class="kv-row"><span class="k">Mod</span><span class="v" id="schedMode">—</span></div>
         <div class="kv-row"><span class="k">Interval</span><span class="v" id="schedInterval">—</span></div>
-        <div class="kv-row"><span class="k">Aktif session</span><span class="v ok">24/7 ALWAYS</span></div>
-        <div class="kv-row"><span class="k">Asset class</span><span class="v">CRYPTO</span></div>
+        <div class="kv-row"><span class="k">Aktif session</span><span class="v" id="schedActiveSession">—</span></div>
+        <div class="kv-row"><span class="k">Asset class</span><span class="v">EQUITY</span></div>
+        <div class="kv-row"><span class="k">Market hours</span><span class="v" style="color: var(--text-tertiary);">9:30-16:00 ET (pre 4-9:30, post 16-20)</span></div>
       </div>
     </div>
   </section>
@@ -1834,8 +1835,14 @@ async function loadMarketDataCore() {
   try {
     const md = await jget(API + '/market-data');
     const grid = document.getElementById('coinGrid');
-    const symbols = ['SPY','ETH/USD','SOL/USD','XRP/USD','DOGE/USD',
-                     'ADA/USD','AVAX/USD','LINK/USD','DOT/USD','LTC/USD'];
+    // V6.0-ε.3: Equity universe — MD'de var olan + benchmark'ları dinamik çek
+    const PREFERRED = ['SPY','QQQ','NVDA','AAPL','MSFT','GOOGL','AMZN','META','TSLA','AMD','AVGO'];
+    const symbols = PREFERRED.filter(s => md[s] && !md[s].error).slice(0, 10);
+    if (symbols.length < 5) {
+      // Fallback: MD'deki ilk 10 ticker'ı al
+      const all = Object.keys(md).filter(k => !k.startsWith('_') && md[k] && !md[k].error);
+      symbols.push(...all.filter(s => !symbols.includes(s)).slice(0, 10 - symbols.length));
+    }
     grid.innerHTML = symbols.map(sym => {
       const d = md[sym];
       if (!d || d.error) return '';
@@ -1901,30 +1908,48 @@ async function loadScheduler() {
     const s = await jget(API + '/scheduler');
     const sm = document.getElementById('schedMode'); if (sm) sm.textContent = s.mode;
     const si = document.getElementById('schedInterval'); if (si) si.textContent = s.interval_minutes + ' dk';
+    const sas = document.getElementById('schedActiveSession');
+    if (sas) {
+      const active = s.is_active_session;
+      sas.textContent = active ? 'AÇIK (market_open / pre / post)' : 'KAPALI';
+      sas.className = 'v ' + (active ? 'ok' : 'warn');
+    }
   } catch(e){console.error(e);}
 }
 
 async function loadRisk() {
   try {
     const r = await jget(API + '/risk-config');
-    document.getElementById('maxRisk').textContent = (r.max_risk_pct * 100).toFixed(2) + '%';
-    document.getElementById('maxGroup').textContent = (r.max_group_pct * 100).toFixed(0) + '%';
-    document.getElementById('atrMult').textContent = r.default_atr_multiplier + '×';
-    document.getElementById('stopPct').textContent = (r.default_stop_pct * 100).toFixed(1) + '%';
+    // V6.0-ε.3: equity schema mapping (max_sector_pct, sector_map)
+    const setText = (id, val) => { const el = document.getElementById(id); if (el) el.textContent = val; };
+    setText('maxRisk', (r.max_risk_pct * 100).toFixed(2) + '%');
+    // max_sector_pct equity'de ondalık yerine yüzde olarak gelir (örn 30.0)
+    const sectorPct = r.max_sector_pct != null ? r.max_sector_pct : (r.max_group_pct ? r.max_group_pct * 100 : 30);
+    setText('maxGroup', sectorPct.toFixed(0) + '%');
+    setText('atrMult', (r.default_atr_multiplier ?? '2.0') + '×');
+    setText('stopPct', ((r.default_stop_pct ?? 0.02) * 100).toFixed(1) + '%');
+
+    // Universe → sektör bar chart
     const u = await jget(API + '/universe');
+    const sectorMap = u.sector_map || u.asset_groups || {};
     const groups = {};
-    for (const grp of Object.values(u.asset_groups)) {
-      groups[grp] = (groups[grp] || 0) + 1;
+    if (Array.isArray(sectorMap)) {
+      // Edge case: list değilse her elemanı say
+      for (const g of sectorMap) groups[g] = (groups[g] || 0) + 1;
+    } else {
+      for (const sec of Object.values(sectorMap)) groups[sec] = (groups[sec] || 0) + 1;
     }
     const groupEl = document.getElementById('groupBars');
-    const sorted = Object.entries(groups).sort((a,b) => b[1] - a[1]);
-    const max = Math.max(...sorted.map(([,c]) => c));
-    groupEl.innerHTML = sorted.map(([grp, count]) => `
-      <div class="group-row">
-        <span class="group-name">${grp}</span>
-        <div class="group-bar"><div class="group-bar-fill" style="width:${(count/max)*100}%"></div></div>
-        <span class="group-count">${count} sym</span>
-      </div>`).join('');
+    if (groupEl) {
+      const sorted = Object.entries(groups).sort((a,b) => b[1] - a[1]);
+      const max = Math.max(1, ...sorted.map(([,c]) => c));
+      groupEl.innerHTML = sorted.map(([grp, count]) => `
+        <div class="group-row">
+          <span class="group-name">${grp}</span>
+          <div class="group-bar"><div class="group-bar-fill" style="width:${(count/max)*100}%"></div></div>
+          <span class="group-count">${count} sym</span>
+        </div>`).join('');
+    }
   } catch(e){console.error(e);}
 }
 

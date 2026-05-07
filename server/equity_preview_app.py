@@ -820,10 +820,18 @@ def run_now():
 @app.get("/api/equity/risk-config")
 def risk_config():
     return {
-        "max_risk_pct": 0.02,  # equity standart %2
+        "max_risk_pct": 0.02,                    # equity standart %2
         "max_sector_pct": _auto_executor.gates.get("MAX_SECTOR_PCT", 30),
+        "default_atr_multiplier": 2.0,           # ATR-based stop loss multiplier
+        "default_stop_pct": 0.02,                # fallback stop pct (%2)
+        "default_take_profit_atr_multiplier": 3.0,  # ATR-based TP (1:1.5 R/R minimum)
         "asset_groups": list(set(SECTOR_MAP.values())),
-        "note": "Equity convention: max %2 risk per trade, max %30 sektör concentration.",
+        "sector_count": len(set(SECTOR_MAP.values())),
+        "max_open_positions": _auto_executor.gates.get("MAX_OPEN_POSITIONS", 5),
+        "min_confidence": _auto_executor.gates.get("MIN_CONFIDENCE", 6),
+        "symbol_cooldown_hours": _auto_executor.gates.get("SYMBOL_COOLDOWN_HOURS", 4),
+        "asset_class": "equity",
+        "note": "Equity convention: max %2 risk per trade, max %30 sektör concentration, ATR×2 stop, ATR×3 TP.",
     }
 
 
